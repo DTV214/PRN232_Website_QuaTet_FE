@@ -12,6 +12,10 @@ import RegisterPage from "./feature/auth/pages/RegisterPage";
 import HomePage from "./feature/homepage/pages/HomePage";
 import BackToTop from "./components/common/BackToTop"; // Import nút BackToTop
 import "./App.css";
+import IntroducePage from "@/feature/introduce/pages/IntroducePage";
+import BlogDetailPage from "@/feature/blog/pages/BlogDetailPage";
+import BlogPage from "@/feature/blog/pages/BlogPage";
+import ContactPage from "@/feature/contact/pages/ContactPage";
 
 function App() {
   return (
@@ -24,6 +28,11 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/home" element={<HomePage />} />
+            <Route path="/introduce" element={<IntroducePage />} />
+            <Route path="/blogs" element={<BlogPage />} />
+            <Route path="/blog/:id" element={<BlogDetailPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+
           </Routes>
         </main>
         <Footer />

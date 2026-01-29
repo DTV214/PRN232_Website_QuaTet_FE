@@ -13,6 +13,16 @@ import { Link } from "react-router-dom";
 const LOGO_URL =
   "https://res.cloudinary.com/dratbz8bh/image/upload/v1769523263/Gemini_Generated_Image_h7qrtzh7qrtzh7qr_uszekn.png";
 
+// 1. Cấu trúc danh sách Menu tập trung
+const navItems = [
+  { name: "Trang chủ", path: "/home" },
+  { name: "Quà tặng", path: "/products" },
+  { name: "Hộp quà Tết", path: "/products" },
+  { name: "Giới thiệu", path: "/introduce" }, // Đường dẫn tới trang Introduce vừa tạo
+  { name: "Tin tức", path: "/blogs" },
+  { name: "Liên hệ", path: "/contact" },
+];
+
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -20,7 +30,6 @@ export default function Navbar() {
     <nav className="w-full flex flex-col shadow-md sticky top-0 z-[100]">
       {/* 1. THANH CÔNG CỤ TRÊN (TOP BAR) */}
       <div className="bg-tet-primary py-2 md:py-3 px-4 md:px-8 flex items-center justify-between gap-4">
-        {/* Nút Menu cho Mobile */}
         <button
           className="text-white md:hidden p-2 hover:bg-white/10 rounded-lg transition-colors"
           onClick={() => setIsMenuOpen(true)}
@@ -28,7 +37,6 @@ export default function Navbar() {
           <Menu size={28} />
         </button>
 
-        {/* Khu vực LOGO - Thiết kế hình tròn bắt mắt */}
         <Link to="/home" className="flex items-center gap-3 group shrink-0">
           <div className="relative w-12 h-12 md:w-14 md:h-14 overflow-hidden rounded-full border-2 border-tet-secondary shadow-[0_0_15px_rgba(237,229,181,0.3)] transition-transform group-hover:scale-105">
             <img
@@ -42,7 +50,6 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* Thanh Tìm kiếm - Tự động ẩn trên mobile nhỏ */}
         <div className="hidden sm:flex flex-1 max-w-xl mx-4 relative">
           <input
             type="text"
@@ -54,9 +61,7 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Nhóm Icon Chức năng */}
         <div className="flex items-center gap-2 md:gap-5 text-white text-sm font-medium">
-          {/* Tài khoản - Chỉ hiện trên màn hình lớn */}
           <Link
             to="/login"
             className="hidden lg:flex items-center gap-1.5 hover:text-tet-secondary transition-colors"
@@ -65,12 +70,10 @@ export default function Navbar() {
             <span>Tài khoản</span>
           </Link>
 
-          {/* Yêu thích */}
           <div className="hidden sm:flex items-center gap-1.5 cursor-pointer hover:text-tet-secondary transition-colors">
             <Heart size={20} />
           </div>
 
-          {/* Giỏ hàng với Badge số lượng */}
           <div className="flex items-center gap-1.5 cursor-pointer relative hover:text-tet-secondary transition-colors group">
             <div className="p-2 group-hover:bg-white/10 rounded-full transition-colors">
               <ShoppingCart size={22} />
@@ -80,7 +83,6 @@ export default function Navbar() {
             </span>
           </div>
 
-          {/* Nút Hotline */}
           <button className="hidden md:flex bg-tet-secondary text-tet-primary px-5 py-2 rounded-full items-center gap-2 font-bold text-sm shadow-lg hover:bg-white hover:scale-105 transition-all">
             <Phone size={16} fill="currentColor" />
             <span>1900 1234</span>
@@ -88,23 +90,20 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* 2. THANH MENU CHÍNH (DESKTOP ONLY) */}
+      {/* 2. THANH MENU CHÍNH (DESKTOP) */}
       <div className="hidden md:flex bg-[#4a0d06] text-white py-3 justify-center gap-10 lg:gap-14 text-xs lg:text-sm font-medium border-t border-white/5 uppercase tracking-widest">
-        {["Trang chủ", "Quà tặng", "Hộp quà Tết", "Giới thiệu", "Tin tức", "Liên hệ"].map(
-          (item) => (
-            <Link
-              key={item}
-              to="/products"
-              className="relative hover:text-tet-secondary transition-colors after:content-[''] after:absolute after:w-0 after:h-[1px] after:bg-tet-secondary after:bottom-[-4px] after:left-0 hover:after:w-full after:transition-all"
-            >
-              {item}
-            </Link>
-          ),
-        )}
+        {navItems.map((item) => (
+          <Link
+            key={item.name}
+            to={item.path}
+            className="relative hover:text-tet-secondary transition-colors after:content-[''] after:absolute after:w-0 after:h-[1px] after:bg-tet-secondary after:bottom-[-4px] after:left-0 hover:after:w-full after:transition-all"
+          >
+            {item.name}
+          </Link>
+        ))}
       </div>
 
       {/* 3. MENU DI ĐỘNG (MOBILE DRAWER) */}
-      {/* Lớp nền mờ */}
       <div
         className={`fixed inset-0 bg-black/60 z-[110] transition-opacity duration-300 md:hidden ${
           isMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -112,7 +111,6 @@ export default function Navbar() {
         onClick={() => setIsMenuOpen(false)}
       />
 
-      {/* Nội dung Menu trượt */}
       <div
         className={`fixed top-0 left-0 h-full w-[300px] bg-tet-bg z-[120] shadow-2xl transform transition-transform duration-300 ease-out md:hidden ${
           isMenuOpen ? "translate-x-0" : "-translate-x-full"
@@ -128,7 +126,7 @@ export default function Navbar() {
               />
             </div>
             <span className="font-serif font-bold text-xl italic">
-              Quà Tết Yêu Thương
+              Happybox
             </span>
           </div>
           <button
@@ -140,27 +138,21 @@ export default function Navbar() {
         </div>
 
         <div className="p-6 flex flex-col gap-5 text-tet-primary font-bold uppercase tracking-widest text-sm">
-          {[
-            "Trang Chủ",
-            "Quà Tặng",
-            "Hộp Quà Tết",
-            "Giới Thiệu",
-            "Tin Tức",
-            "Liên Hệ",
-          ].map((item) => (
+          {navItems.map((item) => (
             <Link
-              key={item}
-              to="/products"
+              key={item.name}
+              to={item.path}
               onClick={() => setIsMenuOpen(false)}
               className="py-2 border-b border-tet-secondary/20 hover:text-tet-accent transition-colors"
             >
-              {item}
+              {item.name}
             </Link>
           ))}
 
           <div className="mt-8 pt-8 border-t border-tet-primary/10 flex flex-col gap-4 italic lowercase">
             <Link
               to="/login"
+              onClick={() => setIsMenuOpen(false)}
               className="flex items-center gap-3 text-tet-primary"
             >
               <User size={20} /> Tài khoản khách hàng
