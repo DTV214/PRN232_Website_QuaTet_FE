@@ -16,6 +16,12 @@ import IntroducePage from "@/feature/introduce/pages/IntroducePage";
 import BlogDetailPage from "@/feature/blog/pages/BlogDetailPage";
 import BlogPage from "@/feature/blog/pages/BlogPage";
 import ContactPage from "@/feature/contact/pages/ContactPage";
+import AccountVouchers from "@/feature/account/pages/AccountVouchers";
+import AccountAddresses from "@/feature/account/pages/AccountAddresses";
+import OrderHistory from "@/feature/account/pages/OrderHistory";
+import AccountProfile from "@/feature/account/pages/AccountProfile";
+import AccountOverview from "@/feature/account/pages/AccountOverview";
+import AccountLayout from "@/feature/account/layouts/AccountLayout";
 
 function App() {
   return (
@@ -33,6 +39,14 @@ function App() {
             <Route path="/blog/:id" element={<BlogDetailPage />} />
             <Route path="/contact" element={<ContactPage />} />
 
+            <Route path="/account" element={<AccountLayout />}>
+              <Route index element={<Navigate to="overview" />} />
+              <Route path="overview" element={<AccountOverview />} />
+              <Route path="profile" element={<AccountProfile />} />
+              <Route path="orders" element={<OrderHistory />} />
+              <Route path="addresses" element={<AccountAddresses />} />
+              <Route path="vouchers" element={<AccountVouchers />} />
+            </Route>
           </Routes>
         </main>
         <Footer />
