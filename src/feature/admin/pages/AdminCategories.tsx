@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { Plus, Edit, Trash2, Tag } from "lucide-react";
 
+interface Category {
+  id: number;
+  name: string;
+  productCount: number;
+  createdAt: string;
+}
+
 export default function AdminCategories() {
   const [showModal, setShowModal] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [editingCategory] = useState<Category | null>(null);
 
   // Mock data
   const categories = [

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Plus, Search, Edit, Trash2, Eye, Package } from "lucide-react";
-import { productService } from "@/api";
+import { Plus, Search, Edit, Trash2, Eye} from "lucide-react";
+
 
 export default function AdminProducts() {
   const [searchTerm, setSearchTerm] = useState("");

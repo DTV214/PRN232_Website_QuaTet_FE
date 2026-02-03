@@ -1,4 +1,4 @@
-import { useState } from "react";
+
 import { Gift, Eye, Trash2, Copy, Star } from "lucide-react";
 
 export default function AdminTemplates() {

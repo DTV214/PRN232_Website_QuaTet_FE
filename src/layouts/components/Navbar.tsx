@@ -117,7 +117,8 @@ export default function Navbar() {
                     className="fixed inset-0 z-[-1]"
                     onClick={() => setIsUserMenuOpen(false)}
                   ></div>
-                  <d{isAdmin && (
+                  <div className="absolute right-0 mt-3 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 text-tet-primary overflow-hidden animate-in fade-in zoom-in duration-200">
+                    {isAdmin && (
                       <Link
                         to="/admin"
                         onClick={() => setIsUserMenuOpen(false)}
@@ -126,7 +127,6 @@ export default function Navbar() {
                         <Settings size={16} /> Admin Panel
                       </Link>
                     )}
-                    iv className="absolute right-0 mt-3 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 text-tet-primary overflow-hidden animate-in fade-in zoom-in duration-200">
                     <Link
                       to="/account/overview"
                       onClick={() => setIsUserMenuOpen(false)}

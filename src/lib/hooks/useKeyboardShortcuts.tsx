@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 /**
  * Custom hook để thêm keyboard shortcuts cho navigation
@@ -11,7 +11,6 @@ import { useNavigate, useLocation } from "react-router-dom";
  */
 export function useKeyboardShortcuts() {
   const navigate = useNavigate();
-  const location = useLocation();
   const role = localStorage.getItem("role");
   const isAdmin = role === "ADMIN" || role === "STAFF";
 
