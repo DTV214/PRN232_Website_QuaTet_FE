@@ -10,11 +10,56 @@ export const API_ENDPOINTS = {
     REGISTER_REQUEST_OTP: `${BASE_URL}/auth/register/request-otp`,
     REGISTER_VERIFY_OTP: `${BASE_URL}/auth/register/verify-otp`,
   },
-  // Các endpoint khác cho Happybox sau này
+  // Products endpoints
   PRODUCTS: {
     LIST: `${BASE_URL}/products`,
     DETAIL: (id: string | number) => `${BASE_URL}/products/${id}`,
+    CREATE: `${BASE_URL}/products`,
+    UPDATE: (id: string | number) => `${BASE_URL}/products/${id}`,
+    DELETE: (id: string | number) => `${BASE_URL}/products/${id}`,
+    BY_ACCOUNT: `${BASE_URL}/products/account`,
+    DRAFTS: `${BASE_URL}/products/drafts`,
+    VALIDATION_STATUS: (id: string | number) => `${BASE_URL}/products/${id}/validation-status`,
+    // Template endpoints
+    TEMPLATES: `${BASE_URL}/products/templates`,
+    CLONE_TEMPLATE: (templateId: string | number) => `${BASE_URL}/products/templates/${templateId}/clone`,
+    SET_AS_TEMPLATE: (id: string | number) => `${BASE_URL}/products/${id}/set-as-template`,
+    REMOVE_TEMPLATE: (id: string | number) => `${BASE_URL}/products/${id}/remove-template`,
   },
+  
+  // Product Categories endpoints
+  CATEGORIES: {
+    LIST: `${BASE_URL}/product-categories`,
+    CREATE: `${BASE_URL}/product-categories`,
+    UPDATE: (id: string | number) => `${BASE_URL}/product-categories/${id}`,
+    DELETE: (id: string | number) => `${BASE_URL}/product-categories/${id}`,
+  },
+  
+  // Product Configs endpoints
+  CONFIGS: {
+    LIST: `${BASE_URL}/product-configs`,
+    DETAIL: (id: string | number) => `${BASE_URL}/product-configs/${id}`,
+    CREATE: `${BASE_URL}/product-configs`,
+    UPDATE: (id: string | number) => `${BASE_URL}/product-configs/${id}`,
+    DELETE: (id: string | number) => `${BASE_URL}/product-configs/${id}`,
+  },
+  
+  // Product Details endpoints (items in basket)
+  PRODUCT_DETAILS: {
+    CREATE: `${BASE_URL}/product/details`,
+    UPDATE: `${BASE_URL}/product/details`,
+    DELETE: (id: string | number) => `${BASE_URL}/product/details/${id}`,
+    BY_PARENT: (parentId: string | number) => `${BASE_URL}/product/details/parent/${parentId}`,
+  },
+  
+  // Config Details endpoints (config rules)
+  CONFIG_DETAILS: {
+    CREATE: `${BASE_URL}/config-details`,
+    UPDATE: `${BASE_URL}/config-details`,
+    DELETE: (id: string | number) => `${BASE_URL}/config-details/${id}`,
+    BY_CONFIG: (configId: string | number) => `${BASE_URL}/config-details/config/${configId}`,
+  },
+  
   USER: {
     PROFILE: `${BASE_URL}/account/profile`,
   },

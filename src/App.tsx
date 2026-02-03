@@ -7,6 +7,7 @@ import {
 import Navbar from "./layouts/components/Navbar";
 import Footer from "./layouts/components/Footer";
 import BackToTop from "./components/common/BackToTop";
+import { KeyboardShortcutsHint } from "./lib/hooks/useKeyboardShortcuts";
 import "./App.css";
 
 // Auth & Home
@@ -28,6 +29,14 @@ import OrderHistory from "@/feature/account/pages/OrderHistory";
 import AccountAddresses from "@/feature/account/pages/AccountAddresses";
 import AccountVouchers from "@/feature/account/pages/AccountVouchers";
 
+// Admin Module
+import AdminLayout from "@/feature/admin/layouts/AdminLayout";
+import AdminOverview from "@/feature/admin/pages/AdminOverview";
+import AdminProducts from "@/feature/admin/pages/AdminProducts";
+import AdminCategories from "@/feature/admin/pages/AdminCategories";
+import AdminConfigs from "@/feature/admin/pages/AdminConfigs";
+import AdminTemplates from "@/feature/admin/pages/AdminTemplates";
+
 // Product & Checkout Module
 import ProductPage from "@/feature/product/pages/ProductPage";
 import ProductDetailPage from "@/feature/product/pages/ProductDetailPage";
@@ -47,6 +56,17 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem("token");
   return token ? children : <Navigate to="/login" />;
+};
+
+// 3. Chỉ dành cho Admin/Staff
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const token = localStorage.getItem("token");
+  const role = localStorage.getItem("role"); // Assuming role is stored
+  return token && (role === "ADMIN" || role === "STAFF") ? (
+    children
+  ) : (
+    <Navigate to="/home" />
+  );
 };
 
 function App() {
@@ -101,6 +121,23 @@ function App() {
               <Route path="vouchers" element={<AccountVouchers />} />
             </Route>
 
+            {/* ADMIN PANEL (ADMIN/STAFF ONLY) */}
+            <Route
+              path="/admin"
+              element={
+                <AdminRoute>
+                  <AdminLayout />
+                </AdminRoute>
+              }
+            >
+              <Route index element={<Navigate to="overview" />} />
+              <Route path="overview" element={<AdminOverview />} />
+              <Route path="products" element={<AdminProducts />} />
+              <Route path="categories" element={<AdminCategories />} />
+              <Route path="configs" element={<AdminConfigs />} />
+              <Route path="templates" element={<AdminTemplates />} />
+            </Route>
+
             <Route
               path="/checkout"
               element={
@@ -115,6 +152,7 @@ function App() {
         </main>
         <Footer />
         <BackToTop />
+        <KeyboardShortcutsHint />
       </div>
     </Router>
   );
