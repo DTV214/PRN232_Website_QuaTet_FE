@@ -7,24 +7,38 @@ import {
   Phone,
   Menu,
   X,
+  LogOut,
+  ChevronDown,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const LOGO_URL =
   "https://res.cloudinary.com/dratbz8bh/image/upload/v1769523263/Gemini_Generated_Image_h7qrtzh7qrtzh7qr_uszekn.png";
 
-// 1. Cấu trúc danh sách Menu tập trung
 const navItems = [
   { name: "Trang chủ", path: "/home" },
   { name: "Quà tặng", path: "/products" },
   { name: "Hộp quà Tết", path: "/products" },
-  { name: "Giới thiệu", path: "/introduce" }, // Đường dẫn tới trang Introduce vừa tạo
+  { name: "Giới thiệu", path: "/introduce" },
   { name: "Tin tức", path: "/blogs" },
   { name: "Liên hệ", path: "/contact" },
 ];
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // Kiểm tra token để xác định trạng thái đăng nhập
+  const token = localStorage.getItem("token");
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setIsUserMenuOpen(false);
+    navigate("/login");
+  };
 
   return (
     <nav className="w-full flex flex-col shadow-md sticky top-0 z-[100]">
@@ -62,13 +76,62 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-2 md:gap-5 text-white text-sm font-medium">
-          <Link
-            to="/login"
-            className="hidden lg:flex items-center gap-1.5 hover:text-tet-secondary transition-colors"
-          >
-            <User size={20} />
-            <span>Tài khoản</span>
-          </Link>
+          {/* LOGIC HIỂN THỊ TÀI KHOẢN */}
+          {!token ? (
+            <Link
+              to="/login"
+              className="hidden lg:flex items-center gap-1.5 hover:text-tet-secondary transition-colors"
+            >
+              <User size={20} />
+              <span>Đăng nhập</span>
+            </Link>
+          ) : (
+            <div className="relative hidden lg:block">
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="flex items-center gap-1.5 hover:text-tet-secondary transition-colors outline-none"
+              >
+                <div className="w-8 h-8 rounded-full border border-tet-secondary overflow-hidden bg-white/20">
+                  <img
+                    src={`https://ui-avatars.com/api/?name=${user.username || "User"}&background=random`}
+                    alt="avatar"
+                  />
+                </div>
+                <span className="max-w-[100px] truncate">
+                  {user.username || "Tài khoản"}
+                </span>
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {/* DROPDOWN MENU */}
+              {isUserMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-[-1]"
+                    onClick={() => setIsUserMenuOpen(false)}
+                  ></div>
+                  <div className="absolute right-0 mt-3 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-2 text-tet-primary overflow-hidden animate-in fade-in zoom-in duration-200">
+                    <Link
+                      to="/account/overview"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 hover:bg-[#FBF5E8] transition-colors font-bold text-xs uppercase"
+                    >
+                      <User size={16} /> Trang cá nhân
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-red-600 transition-colors font-bold text-xs uppercase border-t border-gray-50"
+                    >
+                      <LogOut size={16} /> Đăng xuất
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="hidden sm:flex items-center gap-1.5 cursor-pointer hover:text-tet-secondary transition-colors">
             <Heart size={20} />
@@ -150,13 +213,31 @@ export default function Navbar() {
           ))}
 
           <div className="mt-8 pt-8 border-t border-tet-primary/10 flex flex-col gap-4 italic lowercase">
-            <Link
-              to="/login"
-              onClick={() => setIsMenuOpen(false)}
-              className="flex items-center gap-3 text-tet-primary"
-            >
-              <User size={20} /> Tài khoản khách hàng
-            </Link>
+            {!token ? (
+              <Link
+                to="/login"
+                onClick={() => setIsMenuOpen(false)}
+                className="flex items-center gap-3 text-tet-primary"
+              >
+                <User size={20} /> Đăng nhập / Đăng ký
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/account/overview"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-3 text-tet-primary font-bold"
+                >
+                  <User size={20} /> Chào, {user.username}
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 text-red-600 font-bold text-left"
+                >
+                  <LogOut size={20} /> Đăng xuất
+                </button>
+              </>
+            )}
             <div className="flex items-center gap-3 text-tet-accent">
               <Phone size={20} fill="currentColor" /> Hotline: 1900 1234
             </div>

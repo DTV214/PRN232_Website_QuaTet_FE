@@ -1,4 +1,3 @@
-// src/App.tsx
 import {
   BrowserRouter as Router,
   Routes,
@@ -36,6 +35,20 @@ import CheckoutPage from "@/feature/checkout/pages/CheckoutPage";
 import PaymentSuccess from "@/feature/checkout/pages/PaymentSuccess";
 import PaymentFailure from "@/feature/checkout/pages/PaymentFailure";
 
+// --- CÁC COMPONENT GÁC CỔNG (ROUTE GUARDS) ---
+
+// 1. Chỉ dành cho người CHƯA đăng nhập (Ẩn Login/Register khi đã có Token)
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+  const token = localStorage.getItem("token");
+  return token ? <Navigate to="/home" /> : children;
+};
+
+// 2. Chỉ dành cho người ĐÃ đăng nhập (Bảo vệ Account/Checkout)
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const token = localStorage.getItem("token");
+  return token ? children : <Navigate to="/login" />;
+};
+
 function App() {
   return (
     <Router>
@@ -43,17 +56,43 @@ function App() {
         <Navbar />
         <main className="flex-grow">
           <Routes>
-            <Route path="/" element={<Navigate to="/login" />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
+            {/* TRANG CÔNG KHAI */}
             <Route path="/home" element={<HomePage />} />
             <Route path="/introduce" element={<IntroducePage />} />
             <Route path="/blogs" element={<BlogPage />} />
             <Route path="/blog/:id" element={<BlogDetailPage />} />
             <Route path="/contact" element={<ContactPage />} />
+            <Route path="/products" element={<ProductPage />} />
+            <Route path="/product/:id" element={<ProductDetailPage />} />
 
-            {/* NESTED ROUTES CHO ACCOUNT */}
-            <Route path="/account" element={<AccountLayout />}>
+            {/* TRANG HẠN CHẾ (PUBLIC ONLY) */}
+            <Route
+              path="/login"
+              element={
+                <PublicRoute>
+                  <LoginPage />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/register"
+              element={
+                <PublicRoute>
+                  <RegisterPage />
+                </PublicRoute>
+              }
+            />
+            <Route path="/" element={<Navigate to="/home" />} />
+
+            {/* TRANG BẢO MẬT (PRIVATE ONLY) */}
+            <Route
+              path="/account"
+              element={
+                <ProtectedRoute>
+                  <AccountLayout />
+                </ProtectedRoute>
+              }
+            >
               <Route index element={<Navigate to="overview" />} />
               <Route path="overview" element={<AccountOverview />} />
               <Route path="profile" element={<AccountProfile />} />
@@ -62,12 +101,14 @@ function App() {
               <Route path="vouchers" element={<AccountVouchers />} />
             </Route>
 
-            {/* ROUTES SẢN PHẨM & THANH TOÁN */}
-            <Route path="/products" element={<ProductPage />} />
-            <Route path="/product/:id" element={<ProductDetailPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-
-            {/* ROUTES KẾT QUẢ */}
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/payment-success" element={<PaymentSuccess />} />
             <Route path="/payment-failure" element={<PaymentFailure />} />
           </Routes>

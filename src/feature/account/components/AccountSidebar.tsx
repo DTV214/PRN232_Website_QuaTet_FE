@@ -1,4 +1,3 @@
-// src/feature/account/components/AccountSidebar.tsx
 import {
   User,
   ClipboardList,
@@ -7,10 +6,21 @@ import {
   LogOut,
   Settings,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 export default function AccountSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // --- LOGIC ĐĂNG XUẤT ---
+  const handleLogout = () => {
+    // Xóa sạch dấu vết đăng nhập
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    // Đẩy người dùng về trang Login ngay lập tức
+    navigate("/login");
+  };
 
   const menuItems = [
     { name: "Hồ sơ", path: "/account/overview", icon: <User size={20} /> },
@@ -49,7 +59,11 @@ export default function AccountSidebar() {
             {item.icon} {item.name}
           </Link>
         ))}
-        <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-600 hover:bg-red-50 transition-all mt-4 border-t border-gray-50 pt-6">
+        {/* Nút đăng xuất được gắn logic handleLogout */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-600 hover:bg-red-50 transition-all mt-4 border-t border-gray-50 pt-6"
+        >
           <LogOut size={20} /> Đăng xuất
         </button>
       </nav>
