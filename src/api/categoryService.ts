@@ -23,7 +23,10 @@ export const categoryService = {
 
   // Update category (Admin/Staff)
   update: async (id: number | string, category: Category, token: string) => {
-    const response = await axios.put(API_ENDPOINTS.CATEGORIES.UPDATE(id), category, {
+    const response = await axios.put(API_ENDPOINTS.CATEGORIES.UPDATE, {
+      categoryid: id,
+      categoryname: category.categoryname
+    }, {
       headers: { Authorization: `Bearer ${token}` }
     });
     return response.data;

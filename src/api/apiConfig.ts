@@ -33,19 +33,19 @@ export const API_ENDPOINTS = {
 
   // Product Categories endpoints
   CATEGORIES: {
-    LIST: `${BASE_URL}/product-categories`,
-    CREATE: `${BASE_URL}/product-categories`,
-    UPDATE: (id: string | number) => `${BASE_URL}/product-categories/${id}`,
-    DELETE: (id: string | number) => `${BASE_URL}/product-categories/${id}`,
+    LIST: `${BASE_URL}/categories`,
+    CREATE: `${BASE_URL}/categories`,
+    UPDATE: `${BASE_URL}/categories`,
+    DELETE: (id: string | number) => `${BASE_URL}/categories/${id}`,
   },
 
   // Product Configs endpoints
   CONFIGS: {
-    LIST: `${BASE_URL}/product-configs`,
-    DETAIL: (id: string | number) => `${BASE_URL}/product-configs/${id}`,
-    CREATE: `${BASE_URL}/product-configs`,
-    UPDATE: (id: string | number) => `${BASE_URL}/product-configs/${id}`,
-    DELETE: (id: string | number) => `${BASE_URL}/product-configs/${id}`,
+    LIST: `${BASE_URL}/configs`,
+    DETAIL: (id: string | number) => `${BASE_URL}/configs/${id}`,
+    CREATE: `${BASE_URL}/configs`,
+    UPDATE: `${BASE_URL}/configs`,
+    DELETE: (id: string | number) => `${BASE_URL}/configs/${id}`,
   },
 
   // Product Details endpoints (items in basket)

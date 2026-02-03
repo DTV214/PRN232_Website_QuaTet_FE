@@ -39,7 +39,10 @@ export const configService = {
 
   // Update config (Admin/Staff)
   update: async (id: number | string, config: ProductConfig, token: string) => {
-    const response = await axios.put(API_ENDPOINTS.CONFIGS.UPDATE(id), config, {
+    const response = await axios.put(API_ENDPOINTS.CONFIGS.UPDATE, {
+      configid: id,
+      ...config
+    }, {
       headers: { Authorization: `Bearer ${token}` }
     });
     return response.data;
