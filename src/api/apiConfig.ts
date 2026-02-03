@@ -1,6 +1,7 @@
 // URL cơ sở của Backend .NET 8
 // src/api/apiConfig.ts
-const BASE_URL = import.meta.env.VITE_API_URL || "https://localhost:7056/api";
+const SERVER_URL = "http://14.225.207.221:5000/api";
+const BASE_URL = SERVER_URL || "https://localhost:7056/api";
 // Điều này giúp bạn chỉ cần đổi file .env khi đẩy lên server thật.
 export const API_ENDPOINTS = {
   AUTH: {
