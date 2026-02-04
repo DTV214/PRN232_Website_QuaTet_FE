@@ -1,8 +1,15 @@
 // URL cơ sở của Backend .NET 8
 // src/api/apiConfig.ts
-const SERVER_URL = "http://14.225.207.221:5000/api";
-const BASE_URL = SERVER_URL || "https://localhost:7056/api";
-// Điều này giúp bạn chỉ cần đổi file .env khi đẩy lên server thật.
+// Prefer configuring via Vite env:
+// - VITE_API_BASE_URL=http://localhost:5280/api
+// - VITE_API_BASE_URL=http://14.225.207.221:5000/api
+const ENV_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL as string | undefined;
+
+// Fallback to current production server if env is not set
+const BASE_URL = (ENV_BASE_URL?.trim() || "http://14.225.207.221:5000/api").replace(/\/+$/, "");
+// const BASE_URL = (ENV_BASE_URL?.trim() || "http://localhost:5280/api").replace(/\/+$/, "");
+
+// Điều này giúp bạn chỉ cần đổi file .env khi chạy local / deploy.
 export const API_ENDPOINTS = {
   AUTH: {
     // Khớp chính xác với Swagger trong ảnh bạn cung cấp
@@ -36,6 +43,8 @@ export const API_ENDPOINTS = {
     
     // Template endpoints
     TEMPLATES: `${BASE_URL}/products/templates`,
+    ADMIN_BASKETS: `${BASE_URL}/products/admin-baskets`,
+    CUSTOM_PRODUCT_BY_ID: (id: string | number) => `${BASE_URL}/products/custom/${id}`,
     CLONE_TEMPLATE: (templateId: string | number) =>
       `${BASE_URL}/products/templates/${templateId}/clone`,
     SET_AS_TEMPLATE: (id: string | number) =>

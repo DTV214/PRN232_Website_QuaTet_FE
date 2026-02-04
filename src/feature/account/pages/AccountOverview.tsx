@@ -8,15 +8,27 @@ import {
   MapPin,
   Gift,
   Loader2,
+  X,
+  Eye,
+  Edit,
+  Trash2,
 } from "lucide-react";
 import type { ProfileData } from "../services/accountService";
 import accountService from "../services/accountService";
+import { productService, type CustomerBasketDto } from "@/api/productService";
 
 export default function AccountOverview() {
   const navigate = useNavigate();
   // 1. Khởi tạo State để quản lý dữ liệu người dùng
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  
+  // State cho custom baskets
+  const [customBaskets, setCustomBaskets] = useState<CustomerBasketDto[]>([]);
+  const [loadingBaskets, setLoadingBaskets] = useState(false);
+  const [showBasketsModal, setShowBasketsModal] = useState(false);
+  const [selectedBasket, setSelectedBasket] = useState<CustomerBasketDto | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // 2. Fetch dữ liệu từ API khi component được mount
   useEffect(() => {
@@ -35,6 +47,41 @@ export default function AccountOverview() {
 
     fetchProfile();
   }, []);
+
+  // Fetch custom baskets
+  const fetchCustomBaskets = async () => {
+    try {
+      setLoadingBaskets(true);
+      const token = localStorage.getItem('token') || '';
+      const response = await productService.getMyBaskets(token);
+      console.log('My baskets response:', response);
+      setCustomBaskets(response.data || []);
+    } catch (error) {
+      console.error('Error fetching custom baskets:', error);
+    } finally {
+      setLoadingBaskets(false);
+    }
+  };
+
+  const handleOpenBasketsModal = async () => {
+    setShowBasketsModal(true);
+    await fetchCustomBaskets();
+  };
+
+  const handleCloseBasketsModal = () => {
+    setShowBasketsModal(false);
+    setCustomBaskets([]);
+  };
+
+  const handleViewBasketDetails = (basket: CustomerBasketDto) => {
+    setSelectedBasket(basket);
+    setShowDetailsModal(true);
+  };
+
+  const handleCloseDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedBasket(null);
+  };
 
   // 3. Hiển thị trạng thái loading trong khi chờ API
   if (loading) {
@@ -118,13 +165,14 @@ export default function AccountOverview() {
       {/* 3. Truy cập nhanh (Giữ nguyên giao diện của bạn) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Thông tin cá nhân", icon: <User size={24} /> },
-          { label: "Lịch sử đơn hàng", icon: <ClipboardList size={24} /> },
-          { label: "Quản lý địa chỉ", icon: <MapPin size={24} /> },
-          { label: "Tạo hộp quà Tết", icon: <Gift size={24} /> },
+          { label: "Thông tin cá nhân", icon: <User size={24} />, onClick: () => navigate('/account/profile') },
+          { label: "Lịch sử đơn hàng", icon: <ClipboardList size={24} />, onClick: () => navigate('/account/orders') },
+          { label: "Quản lý địa chỉ", icon: <MapPin size={24} />, onClick: () => navigate('/account/addresses') },
+          { label: "Tạo hộp quà Tết", icon: <Gift size={24} />, onClick: handleOpenBasketsModal },
         ].map((item, i) => (
           <div
             key={i}
+            onClick={item.onClick}
             className="bg-white p-6 rounded-2xl border border-gray-100 flex flex-col items-center gap-3 hover:border-tet-secondary hover:shadow-lg transition-all cursor-pointer text-center"
           >
             <div className="text-tet-accent">{item.icon}</div>
@@ -149,6 +197,282 @@ export default function AccountOverview() {
           </p>
         </div>
       </section>
+
+      {/* Modal: Danh sách giỏ quà tùy chỉnh */}
+      {showBasketsModal && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={handleCloseBasketsModal}
+        >
+          <div 
+            className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex-shrink-0 bg-gradient-to-r from-tet-primary to-tet-accent p-6 text-white rounded-t-3xl">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-2xl font-bold mb-2">Giỏ quà tùy chỉnh của bạn</h3>
+                  <p className="text-sm opacity-90">Quản lý các giỏ quà đã tạo</p>
+                </div>
+                <button
+                  onClick={handleCloseBasketsModal}
+                  className="p-2 hover:bg-white/20 rounded-full transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              {loadingBaskets ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="text-center">
+                    <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-tet-accent" />
+                    <p className="text-gray-500">Đang tải giỏ quà...</p>
+                  </div>
+                </div>
+              ) : customBaskets.length === 0 ? (
+                <div className="text-center py-20">
+                  <Gift size={64} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500 text-lg mb-2">Chưa có giỏ quà tùy chỉnh nào</p>
+                  <p className="text-gray-400 text-sm">Hãy tạo giỏ quà từ template để bắt đầu!</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {customBaskets.map((basket) => (
+                    <div
+                      key={basket.productid}
+                      className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all"
+                    >
+                      {/* Image */}
+                      <div className="relative h-40 overflow-hidden bg-gradient-to-br from-tet-secondary to-tet-primary/10">
+                        {basket.imageUrl ? (
+                          <img
+                            src={basket.imageUrl}
+                            alt={basket.productname}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Gift size={48} className="text-tet-primary/30" />
+                          </div>
+                        )}
+                        <div className="absolute top-3 right-3">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-lg ${
+                            basket.status === 'DRAFT' ? 'bg-yellow-500 text-white' :
+                            basket.status === 'ACTIVE' ? 'bg-green-500 text-white' :
+                            'bg-gray-500 text-white'
+                          }`}>
+                            {basket.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-4">
+                        <h4 className="text-lg font-bold text-tet-primary mb-2 line-clamp-2 min-h-[3.5rem]">
+                          {basket.productname}
+                        </h4>
+                        <p className="text-xs text-gray-500 mb-3 line-clamp-2">
+                          {basket.description || 'Giỏ quà tùy chỉnh'}
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-2 mb-4">
+                          <div className="bg-blue-50 p-2 rounded-lg">
+                            <p className="text-xs text-gray-600">Tổng giá</p>
+                            <p className="text-sm font-bold text-blue-600">{basket.totalPrice.toLocaleString()}đ</p>
+                          </div>
+                          <div className="bg-purple-50 p-2 rounded-lg">
+                            <p className="text-xs text-gray-600">Số món</p>
+                            <p className="text-sm font-bold text-purple-600">{basket.productDetails?.length || 0}</p>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleViewBasketDetails(basket)}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg font-bold hover:bg-blue-100 transition-all text-sm"
+                          >
+                            <Eye size={14} />
+                            Xem
+                          </button>
+                          <button
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-600 rounded-lg font-bold hover:bg-green-100 transition-all text-sm"
+                          >
+                            <Edit size={14} />
+                            Sửa
+                          </button>
+                          <button
+                            className="px-3 py-2 bg-red-50 text-red-600 rounded-lg font-bold hover:bg-red-100 transition-all"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex-shrink-0 border-t border-gray-100 p-6 flex gap-3">
+              <button
+                onClick={handleCloseBasketsModal}
+                className="flex-1 px-6 py-3 border border-gray-300 text-gray-600 rounded-full font-bold hover:bg-gray-50 transition-all"
+              >
+                Đóng
+              </button>
+              <button
+                onClick={() => navigate('/products')}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-tet-primary to-tet-accent text-white rounded-full font-bold hover:shadow-lg transition-all"
+              >
+                Tạo giỏ quà mới
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Chi tiết giỏ quà */}
+      {showDetailsModal && selectedBasket && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4"
+          onClick={handleCloseDetailsModal}
+        >
+          <div 
+            className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex-shrink-0 bg-gradient-to-r from-tet-primary to-tet-accent p-6 text-white rounded-t-3xl">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-2xl font-bold mb-2">{selectedBasket.productname}</h3>
+                  <p className="text-sm opacity-90">{selectedBasket.description || 'Giỏ quà tùy chỉnh'}</p>
+                </div>
+                <button
+                  onClick={handleCloseDetailsModal}
+                  className="p-2 hover:bg-white/20 rounded-full transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body - Ẩn scrollbar */}
+            <div className="flex-1 overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              {/* Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-blue-50 p-4 rounded-xl">
+                  <p className="text-xs text-gray-600 mb-1">Tổng giá</p>
+                  <p className="text-lg font-bold text-blue-600">{selectedBasket.totalPrice.toLocaleString()}đ</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-xl">
+                  <p className="text-xs text-gray-600 mb-1">Trọng lượng</p>
+                  <p className="text-lg font-bold text-green-600">{selectedBasket.totalWeight}g</p>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-xl">
+                  <p className="text-xs text-gray-600 mb-1">Số món</p>
+                  <p className="text-lg font-bold text-purple-600">{selectedBasket.productDetails?.length || 0}</p>
+                </div>
+                <div className="bg-amber-50 p-4 rounded-xl">
+                  <p className="text-xs text-gray-600 mb-1">Trạng thái</p>
+                  <p className={`text-lg font-bold ${
+                    selectedBasket.status === 'DRAFT' ? 'text-yellow-600' :
+                    selectedBasket.status === 'ACTIVE' ? 'text-green-600' :
+                    'text-gray-600'
+                  }`}>
+                    {selectedBasket.status}
+                  </p>
+                </div>
+              </div>
+
+              {/* Config Info */}
+              {selectedBasket.configName && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                  <p className="text-sm font-bold text-purple-900">
+                    📦 Cấu hình: {selectedBasket.configName}
+                  </p>
+                </div>
+              )}
+
+              {/* Product Details */}
+              <div>
+                <h4 className="text-lg font-bold text-tet-primary mb-4">Sản phẩm trong giỏ</h4>
+                {selectedBasket.productDetails && selectedBasket.productDetails.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedBasket.productDetails.map((detail, index) => (
+                      <div
+                        key={index}
+                        className="bg-gray-50 p-4 rounded-xl flex items-center gap-4 hover:shadow-md transition-all"
+                      >
+                        {detail.imageUrl ? (
+                          <img
+                            src={detail.imageUrl}
+                            alt={detail.productname}
+                            className="w-16 h-16 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-lg bg-gray-200 flex items-center justify-center">
+                            <Gift size={24} className="text-gray-400" />
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <h5 className="font-bold text-tet-primary">
+                            {detail.productname}
+                          </h5>
+                          <p className="text-xs text-gray-500">
+                            SKU: {detail.sku || 'N/A'}
+                          </p>
+                          <div className="flex gap-4 mt-1">
+                            <span className="text-xs text-gray-600">
+                              Giá: <span className="font-bold text-tet-accent">{detail.price.toLocaleString()}đ</span>
+                            </span>
+                            <span className="text-xs text-gray-600">
+                              Trọng lượng: <span className="font-bold">{detail.unit}g</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500 mb-1">Số lượng</p>
+                          <p className="text-2xl font-bold text-tet-primary">x{detail.quantity}</p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            = <span className="font-bold text-blue-600">{detail.subtotal.toLocaleString()}đ</span>
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <Gift size={48} className="mx-auto mb-2 opacity-50" />
+                    <p>Chưa có sản phẩm trong giỏ</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex-shrink-0 border-t border-gray-100 p-6 flex gap-3">
+              <button
+                onClick={handleCloseDetailsModal}
+                className="flex-1 px-6 py-3 border border-gray-300 text-gray-600 rounded-full font-bold hover:bg-gray-50 transition-all"
+              >
+                Đóng
+              </button>
+              <button
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-tet-primary to-tet-accent text-white rounded-full font-bold hover:shadow-lg transition-all"
+              >
+                Chỉnh sửa giỏ quà
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

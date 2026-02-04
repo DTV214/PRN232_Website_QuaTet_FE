@@ -1,34 +1,16 @@
-import axios from 'axios';
+import axiosClient from './axiosClient';
 import { API_ENDPOINTS } from './apiConfig';
 
-// Types
-export interface Product {
-  productid?: number;
-  categoryid?: number;
-  configid?: number;
-  accountid?: number;
-  sku?: string;
-  productname?: string;
-  description?: string;
-  imageUrl?: string;
-  price?: number;
-  status?: string;
-  unit?: number;
-  isCustom?: boolean;
-  totalQuantity?: number;
-  stocks?: StockDto[];
-}
+import type {
+  ProductDto,
+  ProductDetailResponseDto,
+  StockDto as StockDtoServer,
+} from './dtos/product.dto';
 
-export interface StockDto {
-  stockId: number;
-  productId: number;
-  productName: string;
-  quantity: number;
-  expiryDate?: string;
-  status: string;
-  productionDate?: string;
-  lastUpdated?: string;
-}
+// Types (DTO-aligned)
+export type Product = ProductDto;
+export type ProductDetailResponse = ProductDetailResponseDto;
+export type StockDto = StockDtoServer;
 
 export interface CreateSingleProductRequest {
   categoryid?: number;
@@ -117,129 +99,151 @@ export interface ValidationStatus {
 export const productService = {
   // Get all products
   getAll: async () => {
-    const response = await axios.get(API_ENDPOINTS.PRODUCTS.LIST);
-    return response.data;
+    const response = await axiosClient.get(API_ENDPOINTS.PRODUCTS.LIST);
+    return response;
   },
 
   // Get product by ID
   getById: async (id: number | string) => {
-    const response = await axios.get(API_ENDPOINTS.PRODUCTS.DETAIL(id));
-    return response.data;
+    const response = await axiosClient.get(API_ENDPOINTS.PRODUCTS.DETAIL(id));
+    return response;
   },
 
   // Get products by account (logged in user)
   getByAccount: async (token: string) => {
-    const response = await axios.get(API_ENDPOINTS.PRODUCTS.BY_ACCOUNT, {
+    const response = await axiosClient.get(API_ENDPOINTS.PRODUCTS.BY_ACCOUNT, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response;
   },
 
   // Get draft baskets
   getDrafts: async (token: string) => {
-    const response = await axios.get(API_ENDPOINTS.PRODUCTS.DRAFTS, {
+    const response = await axiosClient.get(API_ENDPOINTS.PRODUCTS.DRAFTS, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response;
   },
 
   // Get customer's custom baskets with details
-  getMyBaskets: async (token: string): Promise<CustomerBasketDto[]> => {
-    const response = await axios.get(API_ENDPOINTS.PRODUCTS.MY_BASKETS, {
+  getMyBaskets: async (token: string) => {
+    const response = await axiosClient.get(API_ENDPOINTS.PRODUCTS.MY_BASKETS, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response;
   },
 
   // Create normal product (Admin/Staff)
   createNormal: async (product: CreateSingleProductRequest, token: string) => {
-    const response = await axios.post(API_ENDPOINTS.PRODUCTS.CREATE_NORMAL, product, {
+    const response = await axiosClient.post(API_ENDPOINTS.PRODUCTS.CREATE_NORMAL, product, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response;
   },
 
   // Create custom basket (Customer)
   createCustom: async (basket: CreateComboProductRequest, token: string) => {
-    const response = await axios.post(API_ENDPOINTS.PRODUCTS.CREATE_CUSTOM, basket, {
+    const response = await axiosClient.post(API_ENDPOINTS.PRODUCTS.CREATE_CUSTOM, basket, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response;
   },
 
   // Create template basket (Admin/Staff)
   createTemplate: async (basket: CreateComboProductRequest, token: string) => {
-    const response = await axios.post(API_ENDPOINTS.PRODUCTS.CREATE_TEMPLATE, basket, {
+    const response = await axiosClient.post(API_ENDPOINTS.PRODUCTS.CREATE_TEMPLATE, basket, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response;
   },
 
   // Update normal product (Admin/Staff)
   updateNormal: async (id: number | string, product: Product, token: string) => {
-    const response = await axios.put(API_ENDPOINTS.PRODUCTS.UPDATE_NORMAL(id), product, {
+    const response = await axiosClient.put(API_ENDPOINTS.PRODUCTS.UPDATE_NORMAL(id), product, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response;
   },
 
   // Update custom basket
   updateCustom: async (id: number | string, basket: UpdateComboProductRequest, token: string) => {
-    const response = await axios.put(API_ENDPOINTS.PRODUCTS.UPDATE_CUSTOM(id), basket, {
+    const response = await axiosClient.put(API_ENDPOINTS.PRODUCTS.UPDATE_CUSTOM(id), basket, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response;
   },
 
   // Delete product (Admin/Staff)
   delete: async (id: number | string, token: string) => {
-    const response = await axios.delete(API_ENDPOINTS.PRODUCTS.DELETE(id), {
+    const response = await axiosClient.delete(API_ENDPOINTS.PRODUCTS.DELETE(id), {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response;
   },
 
   // Get validation status
-  getValidationStatus: async (id: number | string): Promise<ValidationStatus> => {
-    const response = await axios.get(API_ENDPOINTS.PRODUCTS.VALIDATION_STATUS(id));
-    return response.data;
+  getValidationStatus: async (id: number | string) => {
+    const response = await axiosClient.get(API_ENDPOINTS.PRODUCTS.VALIDATION_STATUS(id));
+    return response;
+  },
+
+  // Get custom product by ID with full details (for editing)
+  getCustomProductById: async (id: number | string) => {
+    const response = await axiosClient.get(API_ENDPOINTS.PRODUCTS.CUSTOM_PRODUCT_BY_ID(id));
+    return response;
   },
 
   // Template operations
   templates: {
     // Get all templates
     getAll: async () => {
-      const response = await axios.get(API_ENDPOINTS.PRODUCTS.TEMPLATES);
-      return response.data;
+      const response = await axiosClient.get(API_ENDPOINTS.PRODUCTS.TEMPLATES);
+      return response;
+    },
+
+    // Create template (Admin/Staff)
+    create: async (data: CreateComboProductRequest, token: string) => {
+      const response = await axiosClient.post(
+        API_ENDPOINTS.PRODUCTS.TEMPLATES,
+        data,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      return response;
+    },
+
+    // Get all admin baskets
+    getAdminBaskets: async () => {
+      const response = await axiosClient.get(API_ENDPOINTS.PRODUCTS.ADMIN_BASKETS);
+      return response;
     },
 
     // Clone template
     clone: async (templateId: number | string, request: CloneBasketRequest, token: string) => {
-      const response = await axios.post(
+      const response = await axiosClient.post(
         API_ENDPOINTS.PRODUCTS.CLONE_TEMPLATE(templateId),
         request,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      return response.data;
+      return response;
     },
 
     // Set as template (Admin/Staff)
     setAsTemplate: async (id: number | string, token: string) => {
-      const response = await axios.post(
+      const response = await axiosClient.post(
         API_ENDPOINTS.PRODUCTS.SET_AS_TEMPLATE(id),
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      return response.data;
+      return response;
     },
 
     // Remove template (Admin/Staff)
     removeTemplate: async (id: number | string, token: string) => {
-      const response = await axios.delete(
+      const response = await axiosClient.delete(
         API_ENDPOINTS.PRODUCTS.REMOVE_TEMPLATE(id),
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      return response.data;
+      return response;
     },
   },
 };
