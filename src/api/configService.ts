@@ -13,6 +13,9 @@ export interface ConfigDetail {
   configdetailid?: number;
   configid: number;
   categoryid: number;
+  categoryName?: string;
+  productId: number;
+  productName?: string;
   quantity: number;
 }
 

@@ -1,13 +1,22 @@
-
 import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, Settings, Eye } from "lucide-react";
-import { configService, configDetailService, type ProductConfig, type ConfigDetail } from "../../../api";
-import { categoryService, type Category } from "../../../api";
+import { 
+  configService,
+  productService,
+  productDetailService,
+  categoryService,
+  type ProductConfig,
+  type Product,
+  type Category,
+  type ProductDetailResponse
+} from "../../../api";
+import ConfigProductManager from "../components/ConfigProductManager";
 
 export default function AdminConfigs() {
   const [configs, setConfigs] = useState<ProductConfig[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [configDetails, setConfigDetails] = useState<Record<number, ConfigDetail[]>>({});
+  const [configProducts, setConfigProducts] = useState<Record<number, ProductDetailResponse[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -20,11 +29,10 @@ export default function AdminConfigs() {
     totalunit: 0,
     imageurl: "",
   });
+  const [selectedProducts, setSelectedProducts] = useState<{ productid: number; quantity: number }[]>([]);
 
-  // Get token from localStorage
   const getToken = () => localStorage.getItem("token") || "";
 
-  // Fetch configs and categories
   useEffect(() => {
     fetchData();
   }, []);
@@ -33,26 +41,39 @@ export default function AdminConfigs() {
     try {
       setLoading(true);
       setError(null);
-      const [configsRes, categoriesRes] = await Promise.all([
+      const [configsRes, productsRes, categoriesRes] = await Promise.all([
         configService.getAll(),
+        productService.getAll(),
         categoryService.getAll(),
       ]);
       setConfigs(configsRes.data || []);
       setCategories(categoriesRes.data || []);
+      
+      const individualProducts = (productsRes.data || []).filter(
+        (p: Product) => !p.configid && p.status !== "TEMPLATE"
+      );
+      setProducts(individualProducts);
 
-      // Fetch config details for each config
-      const details: Record<number, ConfigDetail[]> = {};
-      for (const config of configsRes.data || []) {
-        if (config.configid) {
+      // Fetch template products (products with configid) and their details
+      const templateProducts = (productsRes.data || []).filter(
+        (p: Product) => p.configid && p.status === "TEMPLATE"
+      );
+      
+      const productDetails: Record<number, ProductDetailResponse[]> = {};
+      for (const template of templateProducts) {
+        if (template.productid) {
           try {
-            const detailsRes = await configDetailService.getByConfig(config.configid);
-            details[config.configid] = detailsRes.data || [];
+            const detailsRes = await productDetailService.getByParent(template.productid);
+            // Store by configid for easy lookup
+            if (template.configid) {
+              productDetails[template.configid] = detailsRes.data || [];
+            }
           } catch (err) {
-            details[config.configid] = [];
+            console.error(`Error fetching details for template ${template.productid}:`, err);
           }
         }
       }
-      setConfigDetails(details);
+      setConfigProducts(productDetails);
     } catch (err: any) {
       console.error("Error fetching data:", err);
       setError(err.response?.data?.message || "Không thể tải dữ liệu");
@@ -61,11 +82,14 @@ export default function AdminConfigs() {
     }
   };
 
-  // Open modal for create/edit
-  const handleOpenModal = (config?: ProductConfig) => {
+  const handleOpenModal = async (config?: ProductConfig) => {
     if (config) {
       setEditingConfig(config);
       setFormData(config);
+      if (config.configid) {
+        const details = configProducts[config.configid] || [];
+        setSelectedProducts(details.map(d => ({ productid: d.productid, quantity: d.quantity || 1 })));
+      }
     } else {
       setEditingConfig(null);
       setFormData({
@@ -74,28 +98,18 @@ export default function AdminConfigs() {
         totalunit: 0,
         imageurl: "",
       });
+      setSelectedProducts([]);
     }
     setShowModal(true);
   };
 
-  // Close modal
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingConfig(null);
+    setSelectedProducts([]);
     setError(null);
   };
 
-  // View config details
-  const handleViewConfig = (config: ProductConfig) => {
-    setViewingConfig(config);
-  };
-
-  // Close view modal
-  const handleCloseViewModal = () => {
-    setViewingConfig(null);
-  };
-
-  // Handle form submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -104,29 +118,147 @@ export default function AdminConfigs() {
       return;
     }
 
+    if (selectedProducts.length === 0) {
+      setError("Vui lòng chọn ít nhất 1 sản phẩm cho giỏ quà");
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
 
+      let configId: number;
+      let templateProductId: number | undefined;
+
       if (editingConfig?.configid) {
-        // Update
+        // UPDATE MODE
         await configService.update(editingConfig.configid, formData, getToken());
+        configId = editingConfig.configid;
+        
+        // Find existing template product
+        const allProductsRes = await productService.getAll();
+        const templateProduct = (allProductsRes.data || []).find(
+          (p: Product) => p.configid === configId && p.status === "TEMPLATE"
+        );
+        templateProductId = templateProduct?.productid;
+        
+        if (templateProductId) {
+          // Update existing template basket using new API
+          const updateBasketData = {
+            productname: `Template - ${formData.configname}`,
+            description: `Template cho ${formData.configname}: ${formData.suitablesuggestion || ''}`,
+            imageUrl: formData.imageurl || "",
+            status: "TEMPLATE",
+            productDetails: selectedProducts.map(p => ({
+              productid: p.productid,
+              quantity: p.quantity
+            }))
+          };
+          
+          await productService.updateCustom(templateProductId, updateBasketData, getToken());
+        } else {
+          // Template doesn't exist, create new one
+          const createBasketData = {
+            configid: configId,
+            productname: `Template - ${formData.configname}`,
+            description: `Template cho ${formData.configname}: ${formData.suitablesuggestion || ''}`,
+            imageUrl: formData.imageurl || "",
+            status: "DRAFT", // Will be set to TEMPLATE next
+            productDetails: selectedProducts.map(p => ({
+              productid: p.productid,
+              quantity: p.quantity
+            }))
+          };
+          
+          await productService.createTemplate(createBasketData, getToken());
+          
+          // Wait a bit for database sync
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Find the created basket
+          const refreshedProducts = await productService.getAll();
+          const newBasket = (refreshedProducts.data || []).find(
+            (p: Product) => p.configid === configId && p.status === "DRAFT" && p.productname?.startsWith("Template")
+          );
+          
+          if (newBasket?.productid) {
+            templateProductId = newBasket.productid;
+            // Set as template
+            if (templateProductId !== undefined) {
+              await productService.templates.setAsTemplate(templateProductId, getToken());
+            }
+          } else {
+            throw new Error("Không thể tìm thấy basket vừa tạo");
+          }
+        }
       } else {
-        // Create
-        await configService.create(formData, getToken());
+        // CREATE MODE
+        const response = await configService.create(formData, getToken());
+        configId = response.data?.configid;
+        
+        if (!configId) {
+          throw new Error("Không thể tạo cấu hình");
+        }
+        
+        // Create custom basket with products
+        const createBasketData = {
+          configid: configId,
+          productname: `Template - ${formData.configname}`,
+          description: `Template cho ${formData.configname}: ${formData.suitablesuggestion || ''}`,
+          imageUrl: formData.imageurl || "",
+          status: "DRAFT", // Will be set to TEMPLATE next
+          productDetails: selectedProducts.map(p => ({
+            productid: p.productid,
+            quantity: p.quantity
+          }))
+        };
+        
+        await productService.createTemplate(createBasketData, getToken());
+        
+        // Wait for database sync
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Find the created basket
+        const refreshedProducts = await productService.getAll();
+        const newBasket = (refreshedProducts.data || []).find(
+          (p: Product) => p.configid === configId && p.status === "DRAFT" && p.productname?.startsWith("Template")
+        );
+        
+        if (newBasket?.productid) {
+          templateProductId = newBasket.productid;
+          // Set as template
+          if (templateProductId !== undefined) {
+            await productService.templates.setAsTemplate(templateProductId, getToken());
+          }
+        } else {
+          throw new Error("Không thể tìm thấy basket vừa tạo. Vui lòng thử lại.");
+        }
       }
 
       handleCloseModal();
-      await fetchData(); // Auto refresh
+      await fetchData();
     } catch (err: any) {
       console.error("Error saving config:", err);
-      setError(err.response?.data?.message || "Không thể lưu cấu hình");
+      console.error("Error response:", err.response);
+      console.error("Error data:", err.response?.data);
+      
+      let errorMessage = "Không thể lưu cấu hình";
+      if (err.response?.data?.errors) {
+        // ModelState validation errors
+        const errors = Object.values(err.response.data.errors).flat();
+        errorMessage = errors.join(", ");
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Delete config
   const handleDelete = async (id: number) => {
     if (!window.confirm("Bạn có chắc chắn muốn xóa cấu hình này?")) {
       return;
@@ -134,23 +266,51 @@ export default function AdminConfigs() {
 
     try {
       setError(null);
+      
+      // Find and delete template product (this will cascade delete ProductDetails)
+      const allProductsRes = await productService.getAll();
+      const templateProduct = (allProductsRes.data || []).find(
+        (p: Product) => p.configid === id && p.status === "TEMPLATE"
+      );
+      
+      if (templateProduct?.productid) {
+        await productService.delete(templateProduct.productid, getToken());
+      }
+      
       await configService.delete(id, getToken());
-      await fetchData(); // Auto refresh
+      await fetchData();
     } catch (err: any) {
       console.error("Error deleting config:", err);
       setError(err.response?.data?.message || "Không thể xóa cấu hình");
     }
   };
 
-  // Get category name by id
-  const getCategoryName = (categoryId: number) => {
-    const category = categories.find(c => c.categoryid === categoryId);
-    return category?.categoryname || "N/A";
+  const handleAddProduct = (productId: number) => {
+    if (selectedProducts.find(p => p.productid === productId)) {
+      setError("Sản phẩm đã được thêm");
+      return;
+    }
+    setSelectedProducts([...selectedProducts, { productid: productId, quantity: 1 }]);
+    setError(null);
   };
 
-  // Get config details for a config
-  const getConfigDetailsForConfig = (configId: number) => {
-    return configDetails[configId] || [];
+  const handleRemoveProduct = (productId: number) => {
+    setSelectedProducts(selectedProducts.filter(p => p.productid !== productId));
+  };
+
+  const handleUpdateQuantity = (productId: number, quantity: number) => {
+    setSelectedProducts(selectedProducts.map(p => 
+      p.productid === productId ? { ...p, quantity } : p
+    ));
+  };
+
+  const getConfigProductsForConfig = (configId: number) => {
+    return configProducts[configId] || [];
+  };
+
+  const getCategoryName = (categoryId?: number) => {
+    if (!categoryId) return "Chưa phân loại";
+    return categories.find(c => c.categoryid === categoryId)?.categoryname || "N/A";
   };
 
   return (
@@ -163,7 +323,7 @@ export default function AdminConfigs() {
               Quản lý cấu hình giỏ quà
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Template và quy tắc cho giỏ quà
+              Template và sản phẩm cho giỏ quà
             </p>
           </div>
           <button 
@@ -210,7 +370,7 @@ export default function AdminConfigs() {
       ) : (
         <div className="space-y-4">
         {configs.map((config) => {
-          const details = getConfigDetailsForConfig(config.configid!);
+          const details = getConfigProductsForConfig(config.configid!);
           return (
           <div
             key={config.configid}
@@ -235,14 +395,14 @@ export default function AdminConfigs() {
                     </span>
                     <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
                       <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                      {details.length} quy tắc
+                      {details.length} sản phẩm
                     </span>
                   </div>
                 </div>
               </div>
               <div className="flex gap-2">
                 <button 
-                  onClick={() => handleViewConfig(config)}
+                  onClick={() => setViewingConfig(config)}
                   className="p-2 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
                 >
                   <Eye size={18} />
@@ -267,14 +427,33 @@ export default function AdminConfigs() {
             {details.length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <p className="text-xs font-bold text-gray-600 mb-2 uppercase">
-                  Quy tắc danh mục:
+                  Sản phẩm trong giỏ:
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {details.map((detail, index) => (
-                    <span key={index} className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg text-xs">
-                      {getCategoryName(detail.categoryid)}: tối đa {detail.quantity} món
-                    </span>
-                  ))}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {details.slice(0, 4).map((detail, index) => {
+                    const product = products.find(p => p.productid === detail.productid);
+                    const productImg = product?.imageUrl;
+                    const productName = detail.productname || product?.productname || "N/A";
+                    return (
+                      <div key={index} className="bg-gray-50 rounded-lg p-2 text-center">
+                        {productImg && (
+                          <img 
+                            src={productImg} 
+                            alt={productName}
+                            className="w-full h-16 object-cover rounded mb-1"
+                          />
+                        )}
+                        <p className="text-xs font-medium truncate">{productName}</p>
+                        <p className="text-xs text-gray-500 truncate">{getCategoryName(product?.categoryid)}</p>
+                        <p className="text-xs text-tet-primary font-bold">x{detail.quantity}</p>
+                      </div>
+                    );
+                  })}
+                  {details.length > 4 && (
+                    <div className="bg-gray-50 rounded-lg p-2 flex items-center justify-center">
+                      <p className="text-sm text-gray-500">+{details.length - 4} khác</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -291,31 +470,47 @@ export default function AdminConfigs() {
           onClick={handleCloseModal}
         >
           <div 
-            className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl relative max-h-[90vh] flex flex-col"
+            className="bg-white rounded-3xl p-8 max-w-4xl w-full shadow-2xl relative max-h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-2xl font-serif font-bold text-tet-primary mb-6 flex-shrink-0">
               {editingConfig ? "Chỉnh sửa cấu hình" : "Tạo cấu hình mới"}
             </h3>
             <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
-              <div className="overflow-y-auto flex-1 pr-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="overflow-y-auto flex-1 pr-2 [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full">
                 <div className="space-y-4">
-                  {/* Tên cấu hình */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Tên cấu hình <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Nhập tên cấu hình..."
-                      value={formData.configname || ""}
-                      onChange={(e) => setFormData({ ...formData, configname: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-tet-accent focus:border-transparent"
-                      disabled={submitting}
-                    />
+                  {/* Basic Config Info */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">
+                        Tên cấu hình <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Nhập tên cấu hình..."
+                        value={formData.configname || ""}
+                        onChange={(e) => setFormData({ ...formData, configname: e.target.value })}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-tet-accent focus:border-transparent"
+                        disabled={submitting}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">
+                        Tổng khối lượng tối đa (gram)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={formData.totalunit || 0}
+                        onChange={(e) => setFormData({ ...formData, totalunit: Number(e.target.value) })}
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-tet-accent focus:border-transparent"
+                        disabled={submitting}
+                        min="0"
+                      />
+                    </div>
                   </div>
 
-                  {/* Gợi ý phù hợp */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">
                       Gợi ý phù hợp
@@ -330,23 +525,6 @@ export default function AdminConfigs() {
                     />
                   </div>
 
-                  {/* Tổng khối lượng */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      Tổng khối lượng tối đa (gram)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      value={formData.totalunit || 0}
-                      onChange={(e) => setFormData({ ...formData, totalunit: Number(e.target.value) })}
-                      className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-tet-accent focus:border-transparent"
-                      disabled={submitting}
-                      min="0"
-                    />
-                  </div>
-
-                  {/* URL hình ảnh */}
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-2">
                       URL Hình ảnh
@@ -357,6 +535,19 @@ export default function AdminConfigs() {
                       value={formData.imageurl || ""}
                       onChange={(e) => setFormData({ ...formData, imageurl: e.target.value })}
                       className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-tet-accent focus:border-transparent"
+                      disabled={submitting}
+                    />
+                  </div>
+
+                  {/* Product Selection */}
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <ConfigProductManager
+                      products={products}
+                      categories={categories}
+                      selectedProducts={selectedProducts}
+                      onAdd={handleAddProduct}
+                      onRemove={handleRemoveProduct}
+                      onUpdateQuantity={handleUpdateQuantity}
                       disabled={submitting}
                     />
                   </div>
@@ -395,10 +586,10 @@ export default function AdminConfigs() {
       {viewingConfig && (
         <div 
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4"
-          onClick={handleCloseViewModal}
+          onClick={() => setViewingConfig(null)}
         >
           <div 
-            className="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            className="bg-white rounded-3xl p-8 max-w-3xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-start mb-6">
@@ -406,7 +597,7 @@ export default function AdminConfigs() {
                 Chi tiết cấu hình
               </h3>
               <button
-                onClick={handleCloseViewModal}
+                onClick={() => setViewingConfig(null)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -416,35 +607,20 @@ export default function AdminConfigs() {
             </div>
 
             <div className="space-y-6">
-              {/* Image */}
               {viewingConfig.imageurl && (
                 <div className="flex justify-center">
                   <img
                     src={viewingConfig.imageurl}
                     alt={viewingConfig.configname}
                     className="max-w-full h-64 object-contain rounded-xl border border-gray-200"
-                    onError={(e) => {
-                      e.currentTarget.src = "https://via.placeholder.com/400x300?text=No+Image";
-                    }}
                   />
                 </div>
               )}
 
-              {/* Config Info Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm text-gray-500 mb-1">ID Cấu hình</p>
-                  <p className="font-bold text-tet-primary">{viewingConfig.configid}</p>
-                </div>
-
                 <div className="p-4 bg-gray-50 rounded-xl">
                   <p className="text-sm text-gray-500 mb-1">Tên cấu hình</p>
                   <p className="font-bold">{viewingConfig.configname || "-"}</p>
-                </div>
-
-                <div className="p-4 bg-gray-50 rounded-xl md:col-span-2">
-                  <p className="text-sm text-gray-500 mb-1">Gợi ý phù hợp</p>
-                  <p className="font-bold">{viewingConfig.suitablesuggestion || "-"}</p>
                 </div>
 
                 <div className="p-4 bg-gray-50 rounded-xl">
@@ -454,40 +630,59 @@ export default function AdminConfigs() {
                   </p>
                 </div>
 
-                <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm text-gray-500 mb-1">Số quy tắc</p>
-                  <p className="font-bold text-lg">
-                    {getConfigDetailsForConfig(viewingConfig.configid!).length}
-                  </p>
+                <div className="p-4 bg-gray-50 rounded-xl md:col-span-2">
+                  <p className="text-sm text-gray-500 mb-1">Gợi ý phù hợp</p>
+                  <p className="font-bold">{viewingConfig.suitablesuggestion || "-"}</p>
                 </div>
               </div>
 
-              {/* Config Details */}
-              {getConfigDetailsForConfig(viewingConfig.configid!).length > 0 && (
+              {/* Config Products */}
+              {getConfigProductsForConfig(viewingConfig.configid!).length > 0 && (
                 <div className="p-4 bg-gray-50 rounded-xl">
-                  <p className="text-sm text-gray-500 mb-3 font-bold">Quy tắc danh mục</p>
-                  <div className="space-y-2">
-                    {getConfigDetailsForConfig(viewingConfig.configid!).map((detail, index) => (
-                      <div key={index} className="flex justify-between items-center bg-white p-3 rounded-lg">
-                        <span className="font-medium">{getCategoryName(detail.categoryid)}</span>
-                        <span className="text-tet-primary font-bold">Tối đa: {detail.quantity} món</span>
-                      </div>
-                    ))}
+                  <p className="text-sm text-gray-500 mb-3 font-bold">
+                    Sản phẩm trong giỏ ({getConfigProductsForConfig(viewingConfig.configid!).length})
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {getConfigProductsForConfig(viewingConfig.configid!).map((detail, index) => {
+                      const product = products.find(p => p.productid === detail.productid);
+                      const productImg = product?.imageUrl;
+                      const productName = detail.productname || product?.productname || "N/A";
+                      const categoryName = getCategoryName(product?.categoryid);
+                      return (
+                        <div key={index} className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 hover:shadow-md transition-all">
+                          {productImg && (
+                            <img 
+                              src={productImg} 
+                              alt={productName}
+                              className="w-16 h-16 object-cover rounded"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <p className="font-medium">{productName}</p>
+                            <p className="text-sm text-gray-500">{categoryName}</p>
+                            <p className="text-xs text-gray-400">{detail.unit || product?.unit}g/sp</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-tet-primary font-bold block">x{detail.quantity}</span>
+                            <span className="text-xs text-gray-500">{((detail.unit || product?.unit || 0) * (detail.quantity || 1))}g</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Action Buttons */}
               <div className="flex gap-3 pt-4 border-t border-gray-200">
                 <button
-                  onClick={handleCloseViewModal}
+                  onClick={() => setViewingConfig(null)}
                   className="flex-1 px-6 py-3 border border-gray-200 rounded-full font-bold hover:bg-gray-50 transition-all"
                 >
                   Đóng
                 </button>
                 <button
                   onClick={() => {
-                    handleCloseViewModal();
+                    setViewingConfig(null);
                     handleOpenModal(viewingConfig);
                   }}
                   className="flex-1 px-6 py-3 bg-tet-primary text-white rounded-full font-bold hover:bg-tet-accent transition-all shadow-md flex items-center justify-center gap-2"

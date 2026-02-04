@@ -102,16 +102,53 @@ export default function AdminProducts() {
       return;
     }
 
+    // Validation for normal products
+    if (!formData.isCustom) {
+      if (!formData.sku?.trim()) {
+        setError("Vui lòng nhập SKU cho sản phẩm thường");
+        return;
+      }
+      if (!formData.price || formData.price <= 0) {
+        setError("Vui lòng nhập giá hợp lệ (> 0)");
+        return;
+      }
+      if (!formData.unit || formData.unit <= 0) {
+        setError("Vui lòng nhập khối lượng hợp lệ (> 0)");
+        return;
+      }
+    }
+
     try {
       setSubmitting(true);
       setError(null);
 
       if (editingProduct?.productid) {
-        // Update
-        await productService.update(editingProduct.productid, formData, getToken());
+        // Update - only normal products should be updated here
+        if (formData.isCustom) {
+          setError("Không thể cập nhật sản phẩm tùy chỉnh ở đây. Vui lòng sử dụng trang Cấu hình giỏ quà.");
+          setSubmitting(false);
+          return;
+        }
+        await productService.updateNormal(editingProduct.productid, formData, getToken());
       } else {
-        // Create
-        await productService.create(formData, getToken());
+        // Create - normal product only
+        if (formData.isCustom) {
+          setError("Không thể tạo sản phẩm tùy chỉnh ở đây. Vui lòng sử dụng trang Cấu hình giỏ quà.");
+          setSubmitting(false);
+          return;
+        }
+        
+        const createData = {
+          categoryid: formData.categoryid,
+          sku: formData.sku || '',
+          productname: formData.productname,
+          description: formData.description,
+          price: formData.price || 0,
+          unit: formData.unit || 0,
+          imageUrl: formData.imageUrl
+        };
+        
+        await productService.createNormal(createData, getToken());
       }
 
       handleCloseModal();
