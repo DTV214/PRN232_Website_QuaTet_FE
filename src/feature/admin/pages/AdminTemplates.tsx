@@ -3,6 +3,7 @@ import { Gift, Eye, Trash2, Star, X, Edit, Save, Package, Plus } from "lucide-re
 import { useEffect, useState } from "react";
 import { productService, type Product, type UpdateComboProductRequest, type ProductDetailRequest, type CreateComboProductRequest } from "@/api/productService";
 import { configService, type ProductConfig } from "@/api/configService";
+import { categoryService, type Category } from "@/api/categoryService";
 
 interface ProductDetailWithChild extends ProductDetailRequest {
   childProduct?: Product;
@@ -19,6 +20,11 @@ export default function AdminTemplates() {
   const [editLoading, setEditLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [editProductConfig, setEditProductConfig] = useState<ProductConfig | null>(null);
+  const [availableProductsForEdit, setAvailableProductsForEdit] = useState<Product[]>([]);
+  const [categoriesForEdit, setCategoriesForEdit] = useState<Category[]>([]);
+  const [productSearchForEdit, setProductSearchForEdit] = useState("");
+  const [selectedCategoryForEdit, setSelectedCategoryForEdit] = useState<number>(0);
   
   // Create modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -28,6 +34,9 @@ export default function AdminTemplates() {
   const [selectedConfigId, setSelectedConfigId] = useState<number>(0);
   const [selectedConfig, setSelectedConfig] = useState<ProductConfig | null>(null);
   const [productSearch, setProductSearch] = useState("");
+  
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   
   // Edit form state
   const [productname, setProductname] = useState("");
@@ -326,13 +335,15 @@ export default function AdminTemplates() {
       setEditLoading(true);
       setShowEditModal(true);
       
-      console.log('Calling API: GET /products/custom/' + productId);
-      const response = await productService.getCustomProductById(productId);
+      console.log('Calling API: GET /products/' + productId);
+      const response = await productService.getById(productId);
       const data = response.data as Product;
       
       console.log('Fetched product data:', data);
       console.log('Product name:', data.productname);
+      console.log('Config ID:', data.configid);
       console.log('Product details count:', data.productDetails?.length || 0);
+      console.log('Product details raw:', data.productDetails);
       
       setEditProduct(data);
       setProductname(data.productname || "");
@@ -340,23 +351,90 @@ export default function AdminTemplates() {
       setImageUrl(data.imageUrl || "");
       setStatus(data.status || "DRAFT");
       
-      const details: ProductDetailWithChild[] = (data.productDetails || []).map(pd => ({
-        productid: pd.productid,
-        quantity: pd.quantity,
-        childProduct: pd.childProduct
-      }));
+      // Fetch child products if not included
+      const details: ProductDetailWithChild[] = [];
+      for (const pd of data.productDetails || []) {
+        let childProduct = pd.childProduct;
+        
+        // If childProduct is not included, fetch it
+        if (!childProduct && pd.productid) {
+          console.log('Fetching child product ID:', pd.productid);
+          try {
+            const childResponse = await productService.getById(pd.productid);
+            childProduct = childResponse.data;
+            console.log('Child product loaded:', childProduct?.productname);
+          } catch (childError) {
+            console.warn('⚠️ Could not load child product:', pd.productid);
+          }
+        }
+        
+        details.push({
+          productid: pd.productid,
+          quantity: pd.quantity,
+          childProduct: childProduct
+        });
+      }
+      
       setProductDetails(details);
+      console.log('Product details set:', details.length, 'items');
+      console.log('Product details with children:', details.map(d => ({
+        productid: d.productid,
+        quantity: d.quantity,
+        childName: d.childProduct?.productname,
+        categoryid: d.childProduct?.categoryid
+      })));
+      
+      // Fetch config if exists
+      if (data.configid) {
+        console.log('Fetching config ID:', data.configid);
+        try {
+          const configData = await configService.getById(data.configid);
+          setEditProductConfig(configData);
+          console.log('Config loaded:', configData?.configname);
+        } catch (configError: any) {
+          console.warn('⚠️ Could not load config:', configError.response?.status, configError.message);
+          setEditProductConfig(null);
+        }
+      } else {
+        console.log('No configid found, resetting editProductConfig');
+        setEditProductConfig(null);
+      }
+      
+      // Fetch categories for filtering
+      console.log('Fetching categories...');
+      const categoriesResponse = await categoryService.getAll();
+      const categories = categoriesResponse.data || [];
+      setCategoriesForEdit(categories);
+      console.log('Categories loaded:', categories.length);
+      
+      // Fetch available products
+      console.log('Fetching products...');
+      const productsResponse = await productService.getAll();
+      const products = productsResponse.data || [];
+      // Filter only ACTIVE single products (not baskets)
+      const filtered = products.filter((p: Product) => 
+        p.status === 'ACTIVE' && !p.configid
+      );
+      setAvailableProductsForEdit(filtered);
+      console.log('Available products:', filtered.length);
+      
+      // Reset search and filter
+      setProductSearchForEdit('');
+      setSelectedCategoryForEdit(0);
       
       console.log('✅ Product loaded successfully');
       console.log('Form initialized with:', { 
         productname: data.productname, 
         status: data.status, 
-        detailsCount: details.length 
+        detailsCount: details.length,
+        categoriesCount: categories.length,
+        availableProductsCount: filtered.length
       });
     } catch (error: any) {
       console.error('❌ Error fetching product:', error);
       console.error('Error response:', error.response);
       console.error('Error message:', error.response?.data?.message || error.message);
+      console.error('Error stack:', error.stack);
       
       alert('Không thể tải thông tin sản phẩm');
       setShowEditModal(false);
@@ -369,11 +447,16 @@ export default function AdminTemplates() {
   const handleCloseEditModal = () => {
     setShowEditModal(false);
     setEditProduct(null);
+    setEditProductConfig(null);
     setProductname("");
     setDescription("");
     setImageUrl("");
     setStatus("DRAFT");
     setProductDetails([]);
+    setAvailableProductsForEdit([]);
+    setCategoriesForEdit([]);
+    setProductSearchForEdit("");
+    setSelectedCategoryForEdit(0);
   };
 
   const handleQuantityChange = (index: number, newQuantity: number) => {
@@ -398,7 +481,14 @@ export default function AdminTemplates() {
     console.log('Description:', description);
     console.log('Image URL:', imageUrl);
     console.log('Status:', status);
-    console.log('Product Details:', productDetails);
+    console.log('Product Details Count:', productDetails.length);
+    console.log('Product Details:', productDetails.map(pd => ({
+      productid: pd.productid,
+      productname: pd.childProduct?.productname,
+      quantity: pd.quantity,
+      price: pd.childProduct?.price,
+      categoryid: pd.childProduct?.categoryid
+    })));
     
     if (!productname.trim()) {
       console.warn('Validation failed: Product name is empty');
@@ -412,12 +502,31 @@ export default function AdminTemplates() {
       return;
     }
 
-    // Validate product config for edit (if config is selected)
-    if (selectedConfig) {
-      const validation = validateProductConfig();
-      if (!validation.valid) {
+    // Validate product config for edit
+    if (editProductConfig && editProductConfig.configDetails && editProductConfig.configDetails.length > 0) {
+      const categoryCount: Record<number, number> = {};
+      productDetails.forEach(pd => {
+        const categoryId = pd.childProduct?.categoryid;
+        if (categoryId) {
+          categoryCount[categoryId] = (categoryCount[categoryId] || 0) + (pd.quantity || 0);
+        }
+      });
+
+      const errors: string[] = [];
+      editProductConfig.configDetails.forEach(detail => {
+        const required = detail.quantity;
+        const actual = categoryCount[detail.categoryid] || 0;
+        
+        if (actual < required) {
+          errors.push(`${detail.categoryName}: Cần ${required} món, hiện tại ${actual} món`);
+        } else if (actual > required) {
+          errors.push(`${detail.categoryName}: Vượt quá ${required} món, hiện tại ${actual} món`);
+        }
+      });
+
+      if (errors.length > 0) {
         console.warn('Validation failed: Product config mismatch');
-        alert(validation.message);
+        alert('❌ Giỏ quà không đúng cấu hình:\n' + errors.join('\n'));
         return;
       }
     }
@@ -428,6 +537,7 @@ export default function AdminTemplates() {
       
       const updateData: UpdateComboProductRequest = {
         productname,
+        category: "",  // Empty for baskets/combos (no category needed)
         description: description || undefined,
         imageUrl: imageUrl || undefined,
         status,
@@ -437,24 +547,43 @@ export default function AdminTemplates() {
         }))
       };
 
+      console.log('=== REQUEST DETAILS ===');
+      console.log('Method: PUT');
+      console.log('Endpoint: /products/' + editProduct!.productid + '/custom');
+      console.log('Token present:', !!token);
       console.log('Update payload:', JSON.stringify(updateData, null, 2));
-      console.log('Calling API: PUT /products/' + editProduct!.productid + '/custom');
+      console.log('Update payload details:');
+      console.log('  - productname:', updateData.productname);
+      console.log('  - description:', updateData.description);
+      console.log('  - imageUrl:', updateData.imageUrl);
+      console.log('  - status:', updateData.status);
+      console.log('  - productDetails:', updateData.productDetails);
+      console.log('=========================');
       
       const response = await productService.updateCustom(editProduct!.productid!, updateData, token);
       
-      console.log('Update response:', response);
+      console.log('=== RESPONSE DETAILS ===');
+      console.log('Response status:', response.status);
+      console.log('Response data:', response.data);
       console.log('✅ Update successful');
+      console.log('========================');
       
       alert('Cập nhật giỏ quà thành công');
       handleCloseEditModal();
       fetchTemplates();
       window.location.reload();
     } catch (error: any) {
-      console.error('❌ Error updating product:', error);
-      console.error('Error response:', error.response);
-      console.error('Error message:', error.response?.data?.message || error.message);
-      console.error('Error status:', error.response?.status);
-      console.log('=== END UPDATE PRODUCT (FAILED) ===');
+      console.error('=== UPDATE ERROR DETAILS ===');
+      console.error('❌ Error updating product');
+      console.error('Error type:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error response status:', error.response?.status);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error response message:', error.response?.data?.message);
+      console.error('Error response errors:', error.response?.data?.errors);
+      console.error('Full error object:', JSON.stringify(error.response?.data, null, 2));
+      console.error('Error stack:', error.stack);
+      console.error('===========================');
       
       alert(error.response?.data?.message || error.message || 'Không thể cập nhật sản phẩm');
     } finally {
@@ -478,13 +607,13 @@ export default function AdminTemplates() {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-2xl font-serif font-bold text-tet-primary">
               Quản lý giỏ mẫu
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Giỏ quà mẫu cho khách hàng clone • {templates.length} mẫu
+              Giỏ quà mẫu cho khách hàng clone • {templates.filter(t => statusFilter === 'ALL' || t.status === statusFilter).length} mẫu
             </p>
           </div>
           <button
@@ -494,6 +623,22 @@ export default function AdminTemplates() {
             <Plus size={20} />
             Tạo template mới
           </button>
+        </div>
+        
+        {/* Filter by Status */}
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-gray-700">Lọc theo trạng thái:</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-full text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          >
+            <option value="ALL">Tất cả ({templates.length})</option>
+            <option value="TEMPLATE">TEMPLATE ({templates.filter(t => t.status === 'TEMPLATE').length})</option>
+            <option value="DRAFT">DRAFT ({templates.filter(t => t.status === 'DRAFT').length})</option>
+            <option value="ACTIVE">ACTIVE ({templates.filter(t => t.status === 'ACTIVE').length})</option>
+            <option value="INACTIVE">INACTIVE ({templates.filter(t => t.status === 'INACTIVE').length})</option>
+          </select>
         </div>
       </div>
 
@@ -506,7 +651,9 @@ export default function AdminTemplates() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {templates.map((template) => (
+          {templates
+            .filter(template => statusFilter === 'ALL' || template.status === statusFilter)
+            .map((template) => (
             <div
               key={template.productid}
               className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg transition-all group"
@@ -524,9 +671,15 @@ export default function AdminTemplates() {
                     <Gift size={64} className="text-tet-primary/30" />
                   </div>
                 )}
-                <div className="absolute top-3 right-3 flex gap-2">
-                  <span className="bg-purple-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-                    TEMPLATE
+                <div className="absolute top-3 right-3 flex flex-col gap-2">
+                  <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-lg ${
+                    template.status === 'TEMPLATE' ? 'bg-purple-500 text-white' :
+                    template.status === 'ACTIVE' ? 'bg-green-500 text-white' :
+                    template.status === 'DRAFT' ? 'bg-yellow-500 text-white' :
+                    template.status === 'INACTIVE' ? 'bg-gray-500 text-white' :
+                    'bg-blue-500 text-white'
+                  }`}>
+                    {template.status}
                   </span>
                   {template.totalQuantity !== undefined && (
                     <span className="bg-white/90 backdrop-blur-sm text-tet-accent px-3 py-1 rounded-full text-xs font-bold shadow-lg">
@@ -601,14 +754,32 @@ export default function AdminTemplates() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-tet-primary mb-2">
-              Thống kê template
+              Thống kê template {statusFilter !== 'ALL' && `(${statusFilter})`}
             </h3>
             <p className="text-sm text-gray-600">
-              Tổng số giỏ mẫu: <span className="font-bold">{templates.length} mẫu</span>
+              Tổng số giỏ mẫu: <span className="font-bold">{templates.filter(t => statusFilter === 'ALL' || t.status === statusFilter).length} mẫu</span>
             </p>
             <p className="text-sm text-gray-600">
-              Tổng số sản phẩm: <span className="font-bold">{templates.reduce((sum, t) => sum + (t.productDetails?.length || 0), 0)} món</span>
+              Tổng số sản phẩm: <span className="font-bold">{templates.filter(t => statusFilter === 'ALL' || t.status === statusFilter).reduce((sum, t) => sum + (t.productDetails?.length || 0), 0)} món</span>
             </p>
+            <div className="flex gap-4 mt-3 flex-wrap">
+              <span className="text-xs text-gray-600">
+                <span className="inline-block w-2 h-2 rounded-full bg-purple-500 mr-1"></span>
+                TEMPLATE: <span className="font-bold">{templates.filter(t => t.status === 'TEMPLATE').length}</span>
+              </span>
+              <span className="text-xs text-gray-600">
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                ACTIVE: <span className="font-bold">{templates.filter(t => t.status === 'ACTIVE').length}</span>
+              </span>
+              <span className="text-xs text-gray-600">
+                <span className="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-1"></span>
+                DRAFT: <span className="font-bold">{templates.filter(t => t.status === 'DRAFT').length}</span>
+              </span>
+              <span className="text-xs text-gray-600">
+                <span className="inline-block w-2 h-2 rounded-full bg-gray-500 mr-1"></span>
+                INACTIVE: <span className="font-bold">{templates.filter(t => t.status === 'INACTIVE').length}</span>
+              </span>
+            </div>
           </div>
           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white shadow-lg">
             <Gift size={28} />
@@ -831,6 +1002,94 @@ export default function AdminTemplates() {
                       </select>
                     </div>
 
+                    {/* Product Config Info */}
+                    {editProduct?.configid && !editProductConfig && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <h4 className="text-sm font-bold text-red-900 mb-2 flex items-center gap-2">
+                          <Package size={16} />
+                          ⚠️ Không tìm thấy cấu hình giỏ quà
+                        </h4>
+                        <p className="text-xs text-red-800 mb-3">
+                          Config ID: <span className="font-bold">{editProduct.configid}</span> không tồn tại trong hệ thống.
+                          Có thể config đã bị xóa hoặc dữ liệu không đồng bộ.
+                        </p>
+                        <p className="text-xs text-red-700 italic">
+                          💡 <strong>Giải pháp:</strong> Bạn có thể lưu sản phẩm này để tiếp tục chỉnh sửa. 
+                          Tuy nhiên, không thể validate theo cấu hình vì config không còn tồn tại.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {editProductConfig && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 className="text-sm font-bold text-blue-900 mb-2 flex items-center gap-2">
+                          <Package size={16} />
+                          Cấu hình giỏ quà: {editProductConfig.configname}
+                        </h4>
+                        {editProductConfig.suitablesuggestion && (
+                          <p className="text-xs text-blue-800 mb-2">{editProductConfig.suitablesuggestion}</p>
+                        )}
+                        {editProductConfig.totalunit && (
+                          <p className="text-xs text-blue-700 mb-2">
+                            Trọng lượng tối đa: <span className="font-bold">{editProductConfig.totalunit}g</span>
+                          </p>
+                        )}
+                        {editProductConfig.configDetails && editProductConfig.configDetails.length > 0 && (
+                          <>
+                            <div className="border-t border-blue-200 my-2 pt-2">
+                              <p className="text-xs font-semibold text-blue-900 mb-1.5">Yêu cầu theo danh mục:</p>
+                              <div className="space-y-1.5">
+                                {editProductConfig.configDetails.map((detail, idx) => {
+                                  const currentCount = productDetails
+                                    .filter(pd => pd.childProduct?.categoryid === detail.categoryid)
+                                    .reduce((sum, pd) => sum + (pd.quantity || 0), 0);
+                                  const required = detail.quantity;
+                                  const isCorrect = currentCount === required;
+                                  const isOver = currentCount > required;
+                                  const isUnder = currentCount < required;
+
+                                  return (
+                                    <div key={idx} className="flex items-center justify-between text-sm">
+                                      <span className="text-blue-800 font-medium">{detail.categoryName}:</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`font-bold ${
+                                          isCorrect ? 'text-green-600' :
+                                          isOver ? 'text-red-600' :
+                                          'text-orange-600'
+                                        }`}>
+                                          {currentCount}/{required}
+                                        </span>
+                                        {isCorrect && <span className="text-green-600">✓</span>}
+                                        {isOver && <span className="text-red-600">↑</span>}
+                                        {isUnder && <span className="text-orange-600">↓</span>}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-xs text-blue-700 mt-2 italic">
+                                💡 {(() => {
+                                  if (!editProductConfig.configDetails || editProductConfig.configDetails.length === 0) return '';
+                                  const categoryCount: Record<number, number> = {};
+                                  productDetails.forEach(pd => {
+                                    const categoryId = pd.childProduct?.categoryid;
+                                    if (categoryId) {
+                                      categoryCount[categoryId] = (categoryCount[categoryId] || 0) + (pd.quantity || 0);
+                                    }
+                                  });
+                                  const isValid = editProductConfig.configDetails.every(detail => {
+                                    const actual = categoryCount[detail.categoryid] || 0;
+                                    return actual === detail.quantity;
+                                  });
+                                  return isValid ? '✅ Giỏ quà đã đúng cấu hình' : '⚠️ Cần điều chỉnh số lượng';
+                                })()}
+                              </p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
                     <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">Tổng sản phẩm:</span>
@@ -853,83 +1112,183 @@ export default function AdminTemplates() {
                     </div>
                   </div>
 
-                  {/* Right Column - Product List */}
+                  {/* Right Column - Product Selection & List */}
                   <div>
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-semibold">
-                        Sản phẩm trong giỏ ({productDetails.length})
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold mb-3">
+                        Chọn sản phẩm thêm vào giỏ
                       </h3>
+                      
+                      {/* Search and Category Filter */}
+                      <div className="space-y-2 mb-2">
+                        <input
+                          type="text"
+                          placeholder="Tìm kiếm sản phẩm..."
+                          value={productSearchForEdit}
+                          onChange={(e) => setProductSearchForEdit(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        />
+                        <select
+                          value={selectedCategoryForEdit}
+                          onChange={(e) => setSelectedCategoryForEdit(parseInt(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                        >
+                          <option value={0}>Tất cả danh mục</option>
+                          {categoriesForEdit.map(cat => (
+                            <option key={cat.categoryid} value={cat.categoryid}>
+                              {cat.categoryname}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="max-h-[150px] overflow-y-auto border rounded-lg p-2 space-y-2">
+                        {availableProductsForEdit.length === 0 ? (
+                          <p className="text-center text-gray-500 py-4">Không có sản phẩm khả dụng</p>
+                        ) : (
+                          <>
+                            {availableProductsForEdit
+                              .filter(product => {
+                                // Filter by search
+                                if (productSearchForEdit) {
+                                  const searchLower = productSearchForEdit.toLowerCase();
+                                  if (!product.productname?.toLowerCase().includes(searchLower)) {
+                                    return false;
+                                  }
+                                }
+                                // Filter by category
+                                if (selectedCategoryForEdit && selectedCategoryForEdit !== 0) {
+                                  if (product.categoryid !== selectedCategoryForEdit) {
+                                    return false;
+                                  }
+                                }
+                                return true;
+                              })
+                              .map(product => (
+                              <div 
+                                key={product.productid}
+                                onClick={() => handleAddProduct(product)}
+                                className="flex items-center gap-3 p-2 hover:bg-gray-50 cursor-pointer rounded border border-transparent hover:border-blue-300 transition-all"
+                              >
+                                {product.imageUrl ? (
+                                  <img 
+                                    src={product.imageUrl} 
+                                    alt={product.productname}
+                                    className="w-12 h-12 object-cover rounded"
+                                  />
+                                ) : (
+                                  <div className="w-12 h-12 bg-gray-200 rounded flex items-center justify-center">
+                                    <Gift size={20} className="text-gray-400" />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-sm truncate">{product.productname}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {product.price?.toLocaleString('vi-VN')}đ
+                                  </p>
+                                </div>
+                                <Plus size={16} className="text-blue-600" />
+                              </div>
+                            ))}
+                            {availableProductsForEdit.filter(product => {
+                              if (productSearchForEdit) {
+                                const searchLower = productSearchForEdit.toLowerCase();
+                                if (!product.productname?.toLowerCase().includes(searchLower)) {
+                                  return false;
+                                }
+                              }
+                              if (selectedCategoryForEdit && selectedCategoryForEdit !== 0) {
+                                if (product.categoryid !== selectedCategoryForEdit) {
+                                  return false;
+                                }
+                              }
+                              return true;
+                            }).length === 0 && (
+                              <p className="text-center text-gray-500 py-4 text-sm">
+                                Không tìm thấy sản phẩm phù hợp
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                      {productDetails.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                          <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                          <p>Chưa có sản phẩm nào</p>
-                        </div>
-                      ) : (
-                        productDetails.map((detail, index) => (
-                          <div key={index} className="border rounded-lg p-4 hover:border-blue-300 transition-colors">
-                            <div className="flex gap-4">
-                              {detail.childProduct?.imageUrl && (
-                                <img 
-                                  src={detail.childProduct.imageUrl} 
-                                  alt={detail.childProduct.productname}
-                                  className="w-20 h-20 object-cover rounded"
-                                />
-                              )}
-                              
-                              <div className="flex-1">
-                                <p className="font-medium mb-1">{detail.childProduct?.productname}</p>
-                                <p className="text-sm text-gray-600 mb-2">
-                                  Đơn giá: {detail.childProduct?.price?.toLocaleString('vi-VN')}đ
-                                </p>
-                                
-                                <div className="flex items-center gap-2">
-                                  <label className="text-sm text-gray-600">Số lượng:</label>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => handleQuantityChange(index, (detail.quantity || 1) - 1)}
-                                      className="w-8 h-8 flex items-center justify-center border rounded hover:bg-gray-100"
-                                      disabled={(detail.quantity || 1) <= 1}
-                                    >
-                                      -
-                                    </button>
-                                    <input
-                                      type="number"
-                                      value={detail.quantity || 1}
-                                      onChange={(e) => {
-                                        const val = parseInt(e.target.value) || 1;
-                                        handleQuantityChange(index, val);
-                                      }}
-                                      className="w-16 px-2 py-1 border rounded text-center"
-                                      min="1"
-                                    />
-                                    <button
-                                      onClick={() => handleQuantityChange(index, (detail.quantity || 1) + 1)}
-                                      className="w-8 h-8 flex items-center justify-center border rounded hover:bg-gray-100"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                </div>
-                                
-                                <p className="text-sm font-medium text-blue-600 mt-2">
-                                  Thành tiền: {((detail.quantity || 0) * (detail.childProduct?.price || 0)).toLocaleString('vi-VN')}đ
-                                </p>
-                              </div>
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3">
+                        Sản phẩm trong giỏ ({productDetails.length})
+                      </h3>
 
-                              <button
-                                onClick={() => handleRemoveProductDetail(index)}
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded"
-                                title="Xóa sản phẩm"
-                              >
-                                <Trash2 className="h-5 w-5" />
-                              </button>
-                            </div>
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                        {productDetails.length === 0 ? (
+                          <div className="text-center py-8 text-gray-500">
+                            <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                            <p>Chưa có sản phẩm nào</p>
+                            <p className="text-xs mt-1">Nhấp vào sản phẩm bên trên để thêm</p>
                           </div>
-                        ))
-                      )}
+                        ) : (
+                          productDetails.map((detail, index) => (
+                            <div key={index} className="border rounded-lg p-4 hover:border-blue-300 transition-colors">
+                              <div className="flex gap-4">
+                                {detail.childProduct?.imageUrl && (
+                                  <img 
+                                    src={detail.childProduct.imageUrl} 
+                                    alt={detail.childProduct.productname}
+                                    className="w-20 h-20 object-cover rounded"
+                                  />
+                                )}
+                                
+                                <div className="flex-1">
+                                  <p className="font-medium mb-1">{detail.childProduct?.productname}</p>
+                                  <p className="text-sm text-gray-600 mb-2">
+                                    Đơn giá: {detail.childProduct?.price?.toLocaleString('vi-VN')}đ
+                                  </p>
+                                  
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-sm text-gray-600">Số lượng:</label>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => handleQuantityChange(index, (detail.quantity || 1) - 1)}
+                                        className="w-8 h-8 flex items-center justify-center border rounded hover:bg-gray-100"
+                                        disabled={(detail.quantity || 1) <= 1}
+                                      >
+                                        -
+                                      </button>
+                                      <input
+                                        type="number"
+                                        value={detail.quantity || 1}
+                                        onChange={(e) => {
+                                          const val = parseInt(e.target.value) || 1;
+                                          handleQuantityChange(index, val);
+                                        }}
+                                        className="w-16 px-2 py-1 border rounded text-center"
+                                        min="1"
+                                      />
+                                      <button
+                                        onClick={() => handleQuantityChange(index, (detail.quantity || 1) + 1)}
+                                        className="w-8 h-8 flex items-center justify-center border rounded hover:bg-gray-100"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  <p className="text-sm font-medium text-blue-600 mt-2">
+                                    Thành tiền: {((detail.quantity || 0) * (detail.childProduct?.price || 0)).toLocaleString('vi-VN')}đ
+                                  </p>
+                                </div>
+
+                                <button
+                                  onClick={() => handleRemoveProductDetail(index)}
+                                  className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded"
+                                  title="Xóa sản phẩm"
+                                >
+                                  <Trash2 className="h-5 w-5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

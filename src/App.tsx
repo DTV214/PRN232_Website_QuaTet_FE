@@ -24,6 +24,7 @@ import ContactPage from "@/feature/contact/pages/ContactPage";
 // Account Module
 import AccountLayout from "@/feature/account/layouts/AccountLayout";
 import AccountOverview from "@/feature/account/pages/AccountOverview";
+import EditBasket from "@/feature/account/pages/EditBasket";
 import AccountProfile from "@/feature/account/pages/AccountProfile";
 import OrderHistory from "@/feature/account/pages/OrderHistory";
 import AccountAddresses from "@/feature/account/pages/AccountAddresses";
@@ -115,6 +116,7 @@ function App() {
             >
               <Route index element={<Navigate to="overview" />} />
               <Route path="overview" element={<AccountOverview />} />
+              <Route path="baskets/:id/edit" element={<EditBasket />} />
               <Route path="profile" element={<AccountProfile />} />
               <Route path="orders" element={<OrderHistory />} />
               <Route path="addresses" element={<AccountAddresses />} />

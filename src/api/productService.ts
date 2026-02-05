@@ -41,6 +41,7 @@ export interface ProductDetailRequest {
 
 export interface UpdateComboProductRequest {
   productname?: string;
+  category?: string;
   description?: string;
   imageUrl?: string;
   status?: string;

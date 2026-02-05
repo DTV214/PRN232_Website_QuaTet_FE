@@ -83,6 +83,48 @@ export default function AccountOverview() {
     setSelectedBasket(null);
   };
 
+  // Xóa giỏ quà
+  const handleDeleteBasket = async (productId: number) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa giỏ quà này không?')) return;
+    
+    console.log('=== DELETE CUSTOM BASKET ===');
+    console.log('Product ID:', productId);
+    
+    try {
+      const token = localStorage.getItem('token') || '';
+      console.log('Calling API: DELETE /products/' + productId);
+      
+      await productService.delete(productId, token);
+      
+      console.log('✅ Basket deleted successfully');
+      alert('Đã xóa giỏ quà thành công');
+      
+      // Refresh danh sách giỏ quà
+      await fetchCustomBaskets();
+    } catch (error: any) {
+      console.error('❌ Error deleting basket:', error);
+      console.error('Error response:', error.response);
+      console.error('Error message:', error.response?.data?.message || error.message);
+      
+      alert(error.response?.data?.message || error.message || 'Không thể xóa giỏ quà');
+    } finally {
+      console.log('=== END DELETE BASKET ===');
+    }
+  };
+
+  // Chỉnh sửa giỏ quà - navigate đến trang edit
+  const handleEditBasket = (basket: CustomerBasketDto) => {
+    console.log('=== NAVIGATE TO EDIT BASKET ===');
+    console.log('Basket:', basket);
+    
+    // Navigate đến trang chỉnh sửa với productId
+    // Bạn có thể tạo route /account/baskets/:id/edit
+    // Hoặc navigate đến /products với state để mở modal edit
+    navigate(`/account/baskets/${basket.productid}/edit`, { 
+      state: { basket } 
+    });
+  };
+
   // 3. Hiển thị trạng thái loading trong khi chờ API
   if (loading) {
     return (
@@ -300,12 +342,14 @@ export default function AccountOverview() {
                             Xem
                           </button>
                           <button
+                            onClick={() => handleEditBasket(basket)}
                             className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-600 rounded-lg font-bold hover:bg-green-100 transition-all text-sm"
                           >
                             <Edit size={14} />
                             Sửa
                           </button>
                           <button
+                            onClick={() => handleDeleteBasket(basket.productid!)}
                             className="px-3 py-2 bg-red-50 text-red-600 rounded-lg font-bold hover:bg-red-100 transition-all"
                           >
                             <Trash2 size={14} />
@@ -465,6 +509,10 @@ export default function AccountOverview() {
                 Đóng
               </button>
               <button
+                onClick={() => {
+                  handleCloseDetailsModal();
+                  handleEditBasket(selectedBasket);
+                }}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-tet-primary to-tet-accent text-white rounded-full font-bold hover:shadow-lg transition-all"
               >
                 Chỉnh sửa giỏ quà

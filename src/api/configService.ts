@@ -195,10 +195,23 @@ export const configService = {
     return mapped;
   },
 
-  // Get config by ID
-  getById: async (id: number | string) => {
-    const response = await axiosClient.get(API_ENDPOINTS.CONFIGS.DETAIL(id));
-    return response;
+  // Get config by ID (typed + unwrapped to ProductConfigDto)
+  getById: async (id: number | string): Promise<ProductConfigDto | null> => {
+    const payload = await axiosClient.get(API_ENDPOINTS.CONFIGS.DETAIL(id));
+    const unwrapped = unwrap<unknown>(payload);
+    
+    if (!unwrapped || typeof unwrapped !== 'object') return null;
+    
+    const mapped = mapProductConfigDto(unwrapped);
+    
+    // Debug log
+    if ((import.meta as any)?.env?.DEV) {
+      console.log('[configService.getById] raw payload:', payload);
+      console.log('[configService.getById] unwrapped:', unwrapped);
+      console.log('[configService.getById] mapped ProductConfigDto:', mapped);
+    }
+    
+    return mapped;
   },
 
   // Create config (Admin/Staff)

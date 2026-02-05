@@ -1,10 +1,12 @@
 // Example usage of the API services
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   productService,
   categoryService,
   configService,
   configDetailService,
   productDetailService,
+  type ValidationStatus,
 } from '@/api';
 
 // ===================================
@@ -152,12 +154,12 @@ export const removeFromBasket = async (detailId: number, token?: string) => {
 // Check if basket is valid according to config rules
 export const validateBasket = async (basketId: number) => {
   try {
-    const status = await productService.getValidationStatus(basketId);
+    const status = (await productService.getValidationStatus(basketId)) as unknown as ValidationStatus;
     console.log('Validation status:', status);
     
     if (!status.isValid) {
       console.warn('Basket is not valid:');
-      status.warnings.forEach(warning => console.warn('- ' + warning));
+      status.warnings.forEach((warning: string) => console.warn('- ' + warning));
     }
     
     if (status.weightExceeded) {
@@ -223,18 +225,18 @@ export const fetchConfigDetails = async (configId: number) => {
 export const completeBasketFlow = async () => {
   try {
     // 1. Browse available templates
-    const templates = await fetchTemplates();
-    const selectedTemplate = templates[0]; // User selects first template
+    const templates = (await fetchTemplates()) as unknown as any[];
+    const selectedTemplate = templates[0] as any; // User selects first template
     
     // 2. Clone the template
-    const cloneResult = await cloneTemplate(
+    const cloneResult = (await cloneTemplate(
       selectedTemplate.productid,
       'My Custom Basket'
-    );
-    const newBasketId = cloneResult.basketId;
+    )) as any;
+    const newBasketId = cloneResult?.basketId ?? cloneResult?.data?.basketId;
     
     // 3. View items in the cloned basket
-    const items = await fetchBasketItems(newBasketId);
+    const items = (await fetchBasketItems(newBasketId)) as unknown as any[];
     console.log(`Basket has ${items.length} items`);
     
     // 4. Customize: Remove an item
